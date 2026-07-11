@@ -3,7 +3,7 @@
   "toolId": "remote-commands",
   "sourceClassification": "original-product-source",
   "sourceNote": "Shared AndroidTools helpers are retained because the legacy page imports them directly.",
-  "capturedAtUtc": "2026-07-11T16:41:54.1097411+00:00",
+  "capturedAtUtc": "2026-07-11T16:45:09.2482044+00:00",
   "originalSource": {
     "sourceRoot": "C:\\Users\\lixinrui\\repo\\androidtools",
     "gitTopLevel": "C:/Users/lixinrui/repo/androidtools",
@@ -148,8 +148,8 @@
     "src/AndroidTools.MyPowerTools/**",
     "src/AndroidTools.Powertoold/**"
   ],
-  "currentIntegrationMatchedFileCount": 64,
-  "currentIntegrationCopiedFileCount": 64,
+  "currentIntegrationMatchedFileCount": 33,
+  "currentIntegrationCopiedFileCount": 33,
   "currentIntegrationUnmatchedGlobs": [],
   "currentIntegrationMissingFiles": []
 }
