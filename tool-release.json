@@ -1,8 +1,9 @@
 {
   "schemaVersion": 1,
   "toolId": "remote-commands",
-  "status": "paused",
+  "status": "active",
   "originalEntry": "original-source/powertool/page3.py",
   "packageOwner": "remote-notifications",
-  "buildScript": null
+  "buildScript": "build.ps1",
+  "surface": "current-integration/src/RemoteCommands.Surface"
 }

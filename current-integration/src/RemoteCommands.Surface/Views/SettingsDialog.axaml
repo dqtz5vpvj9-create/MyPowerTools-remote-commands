@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:MyPowerTools.UI.Controls"
+        x:Class="RemoteCommands.Surface.Views.SettingsDialog"
+        Title="Settings"
+        Width="480"
+        Height="360"
+        MinWidth="420"
+        MinHeight="300"
+        Background="{DynamicResource MptBrushAppBackground}"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="*,Auto"
+        RowSpacing="10"
+        Margin="16">
+    <StackPanel Spacing="14"
+                VerticalAlignment="Top">
+      <StackPanel Spacing="4">
+        <TextBlock Classes="MptSectionTitle" Text="External editor command" />
+        <controls:MptTextBox x:Name="EditorInput"
+                             PlaceholderText="code" />
+      </StackPanel>
+      <StackPanel Spacing="4">
+        <TextBlock Classes="MptSectionTitle" Text="Default SSH host" />
+        <controls:MptTextBox x:Name="HostInput"
+                             PlaceholderText="r743" />
+      </StackPanel>
+      <StackPanel Spacing="4">
+        <TextBlock Classes="MptSectionTitle" Text="History retention" />
+        <controls:MptTextBox x:Name="RetentionInput"
+                             PlaceholderText="500" />
+      </StackPanel>
+      <controls:MptCheckBox x:Name="TwoPaneInput"
+                            Content="Show second input pane" />
+    </StackPanel>
+    <StackPanel Grid.Row="1"
+                Orientation="Horizontal"
+                Spacing="8"
+                HorizontalAlignment="Right">
+      <controls:MptButton Content="Save"
+                          Classes="MptPrimaryButton"
+                          Click="OnSaveClick" />
+      <controls:MptButton Content="Cancel"
+                          Click="OnCancelClick" />
+    </StackPanel>
+  </Grid>
+</Window>

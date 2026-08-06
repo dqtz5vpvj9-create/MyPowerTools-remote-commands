@@ -1,0 +1,208 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
+             xmlns:vm="using:RemoteCommands.Surface.ViewModels"
+             x:Class="RemoteCommands.Surface.Views.RemoteCommandsView"
+             x:DataType="vm:RemoteCommandsViewModel"
+             Background="{DynamicResource MptBrushTransparent}"
+             MinHeight="520"
+             ClipToBounds="True">
+  <UserControl.Styles>
+    <Style Selector="ListBox.history-list">
+      <Setter Property="Background" Value="{DynamicResource MptBrushTransparent}" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ListBox.history-list ListBoxItem">
+      <Setter Property="Padding" Value="8" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+      <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
+    </Style>
+    <Style Selector="ListBox.history-list ListBoxItem:pointerover">
+      <Setter Property="Background" Value="{DynamicResource MptBrushControlFillHover}" />
+    </Style>
+    <Style Selector="ListBox.history-list ListBoxItem:selected">
+      <Setter Property="Background" Value="{DynamicResource MptBrushControlFillPressed}" />
+    </Style>
+    <Style Selector="TextBox.command-input">
+      <Setter Property="FontFamily" Value="Consolas, Cascadia Code, monospace" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid MaxWidth="1280"
+        HorizontalAlignment="Stretch"
+        RowDefinitions="Auto,*,Auto"
+        RowSpacing="8"
+        Margin="{DynamicResource MptCompactPadding}">
+    <!-- Toolbar -->
+    <Grid Grid.Row="0"
+          ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+          ColumnSpacing="8"
+          MinHeight="40">
+      <TextBlock Text="Command:"
+                 VerticalAlignment="Center"
+                 Classes="MptMeta" />
+      <ComboBox Grid.Column="1"
+                ItemsSource="{Binding Commands}"
+                SelectedIndex="{Binding SelectedCommandIndex}"
+                DisplayMemberBinding="{Binding Label}"
+                MinWidth="280"
+                MaxWidth="420"
+                VerticalAlignment="Center"
+                ToolTip.Tip="{Binding SelectedCommand.Description}" />
+      <TextBlock Grid.Column="2"
+                 Text="Host:"
+                 VerticalAlignment="Center"
+                 Classes="MptMeta" />
+      <controls:MptTextBox Grid.Column="3"
+                           Text="{Binding Host, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                           PlaceholderText="r743"
+                           Width="140"
+                           VerticalAlignment="Center" />
+      <controls:MptButton Grid.Column="4"
+                          Content="Run"
+                          Classes="MptPrimaryButton"
+                          Click="OnRunClick"
+                          IsEnabled="{Binding !IsRunning}" />
+      <controls:MptButton Grid.Column="5"
+                          Content="Re-run"
+                          Click="OnRerunClick"
+                          IsEnabled="{Binding CanRerun}" />
+      <controls:MptButton Grid.Column="6"
+                          Content="Cancel"
+                          Click="OnCancelClick"
+                          IsEnabled="{Binding IsRunning}" />
+      <controls:MptButton Grid.Column="7"
+                          Content="Copy"
+                          Click="OnCopyClick"
+                          IsEnabled="{Binding !IsRunning}" />
+      <controls:MptButton Grid.Column="8"
+                          Content="Clear"
+                          Click="OnClearOutputClick"
+                          IsEnabled="{Binding !IsRunning}" />
+      <controls:MptButton Grid.Column="9"
+                          Content="Edit YAML"
+                          Click="OnEditYamlClick" />
+      <controls:MptButton Grid.Column="10"
+                          Content="Settings"
+                          Click="OnSettingsClick" />
+    </Grid>
+
+    <!-- Workspace + history -->
+    <Grid Grid.Row="1"
+          ColumnDefinitions="*,320"
+          ColumnSpacing="10">
+      <Border Grid.Column="0"
+              Padding="12"
+              CornerRadius="{DynamicResource MptRadiusCard}"
+              BorderBrush="{DynamicResource MptBrushBorder}"
+              BorderThickness="1"
+              Background="{DynamicResource MptBrushCardBackground}">
+        <Grid RowDefinitions="Auto,Auto,*,Auto"
+              RowSpacing="8">
+          <StackPanel Orientation="Horizontal"
+                      Spacing="12">
+            <TextBlock Text="Input 1"
+                       Classes="MptMeta"
+                       VerticalAlignment="Center" />
+            <controls:MptCheckBox Content="2nd input"
+                                  IsChecked="{Binding IsSecondInputVisible, Mode=TwoWay}"
+                                  VerticalAlignment="Center" />
+            <controls:MptButton Content="Open in editor"
+                                Click="OnExternalEditorClick"
+                                VerticalAlignment="Center" />
+          </StackPanel>
+
+          <TextBox Grid.Row="1"
+                   Classes="command-input"
+                   Text="{Binding Input1, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                   AcceptsReturn="True"
+                   TextWrapping="Wrap"
+                   MinHeight="110"
+                   MaxHeight="180"
+                   PlaceholderText="Input 1..."
+                   ScrollViewer.VerticalScrollBarVisibility="Auto"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+
+          <TextBox Grid.Row="2"
+                   Classes="command-input"
+                   Text="{Binding Input2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                   AcceptsReturn="True"
+                   TextWrapping="Wrap"
+                   MinHeight="70"
+                   MaxHeight="140"
+                   PlaceholderText="Input 2..."
+                   ScrollViewer.VerticalScrollBarVisibility="Auto"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                   IsVisible="{Binding IsSecondInputVisible}" />
+
+          <TextBox Grid.Row="3"
+                   Classes="command-input"
+                   Text="{Binding Output, Mode=OneWay}"
+                   AcceptsReturn="True"
+                   TextWrapping="Wrap"
+                   IsReadOnly="True"
+                   PlaceholderText="Output will appear here..."
+                   ScrollViewer.VerticalScrollBarVisibility="Auto"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                   MinHeight="120" />
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="1"
+              Padding="10"
+              CornerRadius="{DynamicResource MptRadiusCard}"
+              BorderBrush="{DynamicResource MptBrushBorder}"
+              BorderThickness="1"
+              Background="{DynamicResource MptBrushCardBackground}">
+        <Grid RowDefinitions="Auto,Auto,*,Auto"
+              RowSpacing="8">
+          <TextBlock Text="History"
+                     Classes="MptSectionTitle" />
+          <controls:MptTextBox Grid.Row="1"
+                               Text="{Binding HistorySearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                               PlaceholderText="Search history..." />
+          <ListBox Grid.Row="2"
+                   Classes="history-list"
+                   ItemsSource="{Binding FilteredHistoryItems}"
+                   DoubleTapped="OnHistoryDoubleTapped"
+                   ScrollViewer.VerticalScrollBarVisibility="Auto"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Spacing="2">
+                  <TextBlock Classes="MptMeta"
+                             Text="{Binding Timestamp}" />
+                  <TextBlock Text="{Binding Label}"
+                             FontWeight="SemiBold"
+                             TextTrimming="CharacterEllipsis" />
+                  <TextBlock Classes="MptMeta"
+                             Text="{Binding Output}"
+                             MaxLines="2"
+                             TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <controls:MptButton Grid.Row="3"
+                              Content="Clear history"
+                              Click="OnClearHistoryClick"
+                              HorizontalAlignment="Stretch" />
+        </Grid>
+      </Border>
+    </Grid>
+
+    <!-- Status -->
+    <Grid Grid.Row="2"
+          ColumnDefinitions="*,Auto">
+      <TextBlock Text="{Binding StatusText}"
+                 Classes="MptMeta"
+                 VerticalAlignment="Center" />
+      <TextBlock Grid.Column="1"
+                 Text="{Binding SelectedCommand.Description}"
+                 Classes="MptMeta"
+                 TextTrimming="CharacterEllipsis"
+                 VerticalAlignment="Center" />
+    </Grid>
+  </Grid>
+</UserControl>
