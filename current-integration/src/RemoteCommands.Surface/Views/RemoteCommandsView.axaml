@@ -34,9 +34,8 @@
         RowDefinitions="Auto,*,Auto"
         RowSpacing="8"
         Margin="{DynamicResource MptCompactPadding}">
-    <!-- Toolbar -->
     <Grid Grid.Row="0"
-          ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+          ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
           ColumnSpacing="8"
           MinHeight="40">
       <TextBlock Text="Command:"
@@ -50,45 +49,50 @@
                 MaxWidth="420"
                 VerticalAlignment="Center"
                 ToolTip.Tip="{Binding SelectedCommand.Description}" />
-      <TextBlock Grid.Column="2"
-                 Text="Host:"
-                 VerticalAlignment="Center"
-                 Classes="MptMeta" />
-      <controls:MptTextBox Grid.Column="3"
-                           Text="{Binding Host, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                           PlaceholderText="r743"
-                           Width="140"
-                           VerticalAlignment="Center" />
-      <controls:MptButton Grid.Column="4"
+      <StackPanel Grid.Column="2"
+                  Orientation="Horizontal"
+                  Spacing="6"
+                  VerticalAlignment="Center"
+                  IsVisible="{Binding UsesRemoteHost}">
+        <TextBlock Text="Host:"
+                   VerticalAlignment="Center"
+                   Classes="MptMeta" />
+        <ComboBox ItemsSource="{Binding HostOptions}"
+                  SelectedItem="{Binding Host, Mode=TwoWay}"
+                  Width="170"
+                  VerticalAlignment="Center"
+                  IsEnabled="{Binding IsHostSelectionEnabled}"
+                  ToolTip.Tip="{Binding HostSelectionHint}" />
+      </StackPanel>
+      <controls:MptButton Grid.Column="3"
                           Content="Run"
                           Classes="MptPrimaryButton"
                           Click="OnRunClick"
                           IsEnabled="{Binding !IsRunning}" />
-      <controls:MptButton Grid.Column="5"
+      <controls:MptButton Grid.Column="4"
                           Content="Re-run"
                           Click="OnRerunClick"
                           IsEnabled="{Binding CanRerun}" />
-      <controls:MptButton Grid.Column="6"
+      <controls:MptButton Grid.Column="5"
                           Content="Cancel"
                           Click="OnCancelClick"
                           IsEnabled="{Binding IsRunning}" />
-      <controls:MptButton Grid.Column="7"
+      <controls:MptButton Grid.Column="6"
                           Content="Copy"
                           Click="OnCopyClick"
                           IsEnabled="{Binding !IsRunning}" />
-      <controls:MptButton Grid.Column="8"
+      <controls:MptButton Grid.Column="7"
                           Content="Clear"
                           Click="OnClearOutputClick"
                           IsEnabled="{Binding !IsRunning}" />
-      <controls:MptButton Grid.Column="9"
-                          Content="Edit YAML"
+      <controls:MptButton Grid.Column="8"
+                          Content="Edit commands"
                           Click="OnEditYamlClick" />
-      <controls:MptButton Grid.Column="10"
-                          Content="Settings"
+      <controls:MptButton Grid.Column="9"
+                          Content="Hosts &amp; settings"
                           Click="OnSettingsClick" />
     </Grid>
 
-    <!-- Workspace + history -->
     <Grid Grid.Row="1"
           ColumnDefinitions="*,320"
           ColumnSpacing="10">
@@ -98,20 +102,22 @@
               BorderBrush="{DynamicResource MptBrushBorder}"
               BorderThickness="1"
               Background="{DynamicResource MptBrushCardBackground}">
-        <Grid RowDefinitions="Auto,Auto,*,Auto"
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*"
               RowSpacing="8">
-          <StackPanel Orientation="Horizontal"
-                      Spacing="12">
-            <TextBlock Text="Input 1"
-                       Classes="MptMeta"
+          <Grid ColumnDefinitions="*,Auto,Auto"
+                ColumnSpacing="8">
+            <TextBlock Text="{Binding Input1Label}"
+                       Classes="MptSectionTitle"
                        VerticalAlignment="Center" />
-            <controls:MptCheckBox Content="2nd input"
+            <controls:MptCheckBox Grid.Column="1"
+                                  Content="Show second input"
                                   IsChecked="{Binding IsSecondInputVisible, Mode=TwoWay}"
                                   VerticalAlignment="Center" />
-            <controls:MptButton Content="Open in editor"
+            <controls:MptButton Grid.Column="2"
+                                Content="Open commands file"
                                 Click="OnExternalEditorClick"
                                 VerticalAlignment="Center" />
-          </StackPanel>
+          </Grid>
 
           <TextBox Grid.Row="1"
                    Classes="command-input"
@@ -119,33 +125,42 @@
                    AcceptsReturn="True"
                    TextWrapping="Wrap"
                    MinHeight="110"
-                   MaxHeight="180"
-                   PlaceholderText="Input 1..."
+                   MaxHeight="220"
+                   Watermark="{Binding Input1Placeholder}"
                    ScrollViewer.VerticalScrollBarVisibility="Auto"
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
 
-          <TextBox Grid.Row="2"
+          <TextBlock Grid.Row="2"
+                     Text="{Binding Input2Label}"
+                     Classes="MptSectionTitle"
+                     IsVisible="{Binding IsSecondInputVisible}" />
+
+          <TextBox Grid.Row="3"
                    Classes="command-input"
                    Text="{Binding Input2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                    AcceptsReturn="True"
                    TextWrapping="Wrap"
-                   MinHeight="70"
-                   MaxHeight="140"
-                   PlaceholderText="Input 2..."
+                   MinHeight="80"
+                   MaxHeight="180"
+                   Watermark="{Binding Input2Placeholder}"
                    ScrollViewer.VerticalScrollBarVisibility="Auto"
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                    IsVisible="{Binding IsSecondInputVisible}" />
 
-          <TextBox Grid.Row="3"
+          <TextBlock Grid.Row="4"
+                     Text="Output"
+                     Classes="MptSectionTitle" />
+
+          <TextBox Grid.Row="5"
                    Classes="command-input"
                    Text="{Binding Output, Mode=OneWay}"
                    AcceptsReturn="True"
                    TextWrapping="Wrap"
                    IsReadOnly="True"
-                   PlaceholderText="Output will appear here..."
+                   Watermark="Command output appears here."
                    ScrollViewer.VerticalScrollBarVisibility="Auto"
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                   MinHeight="120" />
+                   MinHeight="150" />
         </Grid>
       </Border>
 
@@ -177,6 +192,8 @@
                              FontWeight="SemiBold"
                              TextTrimming="CharacterEllipsis" />
                   <TextBlock Classes="MptMeta"
+                             Text="{Binding Host}" />
+                  <TextBlock Classes="MptMeta"
                              Text="{Binding Output}"
                              MaxLines="2"
                              TextTrimming="CharacterEllipsis" />
@@ -192,7 +209,6 @@
       </Border>
     </Grid>
 
-    <!-- Status -->
     <Grid Grid.Row="2"
           ColumnDefinitions="*,Auto">
       <TextBlock Text="{Binding StatusText}"

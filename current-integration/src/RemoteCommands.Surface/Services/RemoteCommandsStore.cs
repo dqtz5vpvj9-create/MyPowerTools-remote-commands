@@ -9,7 +9,8 @@ public sealed record RemoteCommandsSettings(
     bool TwoPane,
     int HistoryRetention,
     string LastHost,
-    int LastCommandIndex);
+    int LastCommandIndex,
+    string KnownHosts = "r743");
 
 public sealed record RemoteCommandHistoryItem(
     string Timestamp,
@@ -101,7 +102,8 @@ public sealed class RemoteCommandsStore
     public void SaveSettings(RemoteCommandsSettings settings)
     {
         EnsureInitialized();
-        var json = JsonSerializer.Serialize(SettingsFile.FromSettings(settings), JsonOptions);
+        var normalized = NormalizeSettings(settings);
+        var json = JsonSerializer.Serialize(SettingsFile.FromSettings(normalized), JsonOptions);
         File.WriteAllText(_settingsPath, json, Encoding.UTF8);
     }
 
@@ -144,13 +146,90 @@ public sealed class RemoteCommandsStore
         File.WriteAllText(_historyPath, "[]", Encoding.UTF8);
     }
 
+    public static IReadOnlyList<string> ParseKnownHosts(string? text)
+    {
+        var hosts = new List<string>();
+        foreach (var candidate in (text ?? "")
+                     .Replace("\r\n", "\n")
+                     .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            AddHost(hosts, candidate);
+        }
+
+        return hosts;
+    }
+
+    public static string SerializeKnownHosts(IEnumerable<string> hosts)
+    {
+        var normalized = new List<string>();
+        foreach (var host in hosts)
+        {
+            AddHost(normalized, host);
+        }
+
+        return string.Join("\n", normalized);
+    }
+
+    public static bool IsValidHost(string? host)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return false;
+        }
+
+        var trimmed = host.Trim();
+        return !trimmed.StartsWith("-", StringComparison.Ordinal) &&
+               !trimmed.Any(char.IsWhiteSpace);
+    }
+
+    private static RemoteCommandsSettings NormalizeSettings(RemoteCommandsSettings settings)
+    {
+        var defaultHost = IsValidHost(settings.DefaultHost) ? settings.DefaultHost.Trim() : "r743";
+        var lastHost = IsValidHost(settings.LastHost) ? settings.LastHost.Trim() : "";
+        var hosts = new List<string>();
+        AddHost(hosts, defaultHost);
+        foreach (var host in ParseKnownHosts(settings.KnownHosts))
+        {
+            AddHost(hosts, host);
+        }
+
+        AddHost(hosts, lastHost);
+
+        return settings with
+        {
+            DefaultHost = defaultHost,
+            ExternalEditor = string.IsNullOrWhiteSpace(settings.ExternalEditor)
+                ? "code"
+                : settings.ExternalEditor.Trim(),
+            HistoryRetention = Math.Clamp(settings.HistoryRetention, 10, 5000),
+            LastHost = lastHost,
+            LastCommandIndex = Math.Max(0, settings.LastCommandIndex),
+            KnownHosts = SerializeKnownHosts(hosts)
+        };
+    }
+
+    private static void AddHost(List<string> hosts, string? host)
+    {
+        if (!IsValidHost(host))
+        {
+            return;
+        }
+
+        var normalized = host!.Trim();
+        if (!hosts.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        {
+            hosts.Add(normalized);
+        }
+    }
+
     private static RemoteCommandsSettings DefaultSettings => new(
         DefaultHost: "r743",
         ExternalEditor: "code",
         TwoPane: false,
         HistoryRetention: 500,
         LastHost: "",
-        LastCommandIndex: 0);
+        LastCommandIndex: 0,
+        KnownHosts: "r743");
 
     private sealed class SettingsFile
     {
@@ -160,14 +239,16 @@ public sealed class RemoteCommandsStore
         public int HistoryRetention { get; set; } = 500;
         public string LastHost { get; set; } = "";
         public int LastCommandIndex { get; set; }
+        public string KnownHosts { get; set; } = "r743";
 
-        public RemoteCommandsSettings ToSettings() => new(
-            string.IsNullOrWhiteSpace(DefaultHost) ? "r743" : DefaultHost,
-            string.IsNullOrWhiteSpace(ExternalEditor) ? "code" : ExternalEditor,
+        public RemoteCommandsSettings ToSettings() => NormalizeSettings(new RemoteCommandsSettings(
+            DefaultHost,
+            ExternalEditor,
             TwoPane,
-            Math.Clamp(HistoryRetention, 10, 5000),
+            HistoryRetention,
             LastHost ?? "",
-            Math.Max(0, LastCommandIndex));
+            LastCommandIndex,
+            KnownHosts ?? "r743"));
 
         public static SettingsFile FromSettings(RemoteCommandsSettings settings) => new()
         {
@@ -176,7 +257,8 @@ public sealed class RemoteCommandsStore
             TwoPane = settings.TwoPane,
             HistoryRetention = settings.HistoryRetention,
             LastHost = settings.LastHost,
-            LastCommandIndex = settings.LastCommandIndex
+            LastCommandIndex = settings.LastCommandIndex,
+            KnownHosts = settings.KnownHosts
         };
     }
 }

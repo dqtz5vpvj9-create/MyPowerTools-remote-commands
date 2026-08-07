@@ -2,36 +2,69 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:MyPowerTools.UI.Controls"
         x:Class="RemoteCommands.Surface.Views.SettingsDialog"
-        Title="Settings"
-        Width="480"
-        Height="360"
-        MinWidth="420"
-        MinHeight="300"
+        Title="Remote Commands settings"
+        Width="520"
+        Height="560"
+        MinWidth="460"
+        MinHeight="460"
         Background="{DynamicResource MptBrushAppBackground}"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="*,Auto"
         RowSpacing="10"
         Margin="16">
-    <StackPanel Spacing="14"
-                VerticalAlignment="Top">
-      <StackPanel Spacing="4">
-        <TextBlock Classes="MptSectionTitle" Text="External editor command" />
-        <controls:MptTextBox x:Name="EditorInput"
-                             PlaceholderText="code" />
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="14">
+        <StackPanel Spacing="4">
+          <TextBlock Classes="MptSectionTitle" Text="SSH hosts" />
+          <TextBlock Classes="MptMeta"
+                     Text="Add each OpenSSH host or config alias once. The workspace then uses a selector, so routine runs do not require typing a host."
+                     TextWrapping="Wrap" />
+          <Grid ColumnDefinitions="*,Auto"
+                ColumnSpacing="8">
+            <controls:MptTextBox x:Name="NewHostInput"
+                                 PlaceholderText="r743 or user@hostname" />
+            <controls:MptButton Grid.Column="1"
+                                Content="Add"
+                                Click="OnAddHostClick" />
+          </Grid>
+          <ListBox x:Name="HostsList"
+                   Height="120"
+                   SelectionMode="Single" />
+          <controls:MptButton Content="Remove selected host"
+                              Click="OnRemoveHostClick"
+                              HorizontalAlignment="Left" />
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+          <TextBlock Classes="MptSectionTitle" Text="Default SSH host" />
+          <ComboBox x:Name="DefaultHostInput"
+                    MinWidth="220"
+                    HorizontalAlignment="Left" />
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+          <TextBlock Classes="MptSectionTitle" Text="External editor command" />
+          <controls:MptTextBox x:Name="EditorInput"
+                               PlaceholderText="code" />
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+          <TextBlock Classes="MptSectionTitle" Text="History retention" />
+          <controls:MptTextBox x:Name="RetentionInput"
+                               PlaceholderText="500" />
+        </StackPanel>
+
+        <controls:MptCheckBox x:Name="TwoPaneInput"
+                              Content="Show the second input by default" />
+
+        <TextBlock x:Name="ErrorText"
+                   Classes="MptMeta"
+                   Foreground="{DynamicResource MptBrushDanger}"
+                   TextWrapping="Wrap"
+                   IsVisible="False" />
       </StackPanel>
-      <StackPanel Spacing="4">
-        <TextBlock Classes="MptSectionTitle" Text="Default SSH host" />
-        <controls:MptTextBox x:Name="HostInput"
-                             PlaceholderText="r743" />
-      </StackPanel>
-      <StackPanel Spacing="4">
-        <TextBlock Classes="MptSectionTitle" Text="History retention" />
-        <controls:MptTextBox x:Name="RetentionInput"
-                             PlaceholderText="500" />
-      </StackPanel>
-      <controls:MptCheckBox x:Name="TwoPaneInput"
-                            Content="Show second input pane" />
-    </StackPanel>
+    </ScrollViewer>
+
     <StackPanel Grid.Row="1"
                 Orientation="Horizontal"
                 Spacing="8"
