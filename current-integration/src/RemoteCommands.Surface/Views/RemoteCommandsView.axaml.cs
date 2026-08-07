@@ -1,4 +1,3 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
@@ -13,10 +12,13 @@ namespace RemoteCommands.Surface.Views;
 public sealed partial class RemoteCommandsView : UserControl
 {
     private RemoteCommandsViewModel? _viewModel;
+    private readonly TextBox _commandSearchBox;
 
     public RemoteCommandsView()
     {
         AvaloniaXamlLoader.Load(this);
+        _commandSearchBox = this.FindControl<TextBox>("CommandSearchBox")
+            ?? throw new InvalidOperationException("Command search box was not found.");
         DataContextChanged += OnDataContextChanged;
         DetachedFromVisualTree += OnDetachedFromVisualTree;
     }
@@ -31,23 +33,22 @@ public sealed partial class RemoteCommandsView : UserControl
 
     private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
-        DetachedFromVisualTree -= OnDetachedFromVisualTree;
-        ViewModel?.SaveSessionState();
+        ViewModel?.Shutdown();
     }
 
-    private void OnRunClick(object? sender, RoutedEventArgs e)
+    private async void OnRunClick(object? sender, RoutedEventArgs e)
     {
         if (ViewModel is { } viewModel)
         {
-            _ = viewModel.RunAsync();
+            await viewModel.RunAsync();
         }
     }
 
-    private void OnRerunClick(object? sender, RoutedEventArgs e)
+    private async void OnRerunClick(object? sender, RoutedEventArgs e)
     {
         if (ViewModel is { } viewModel)
         {
-            _ = viewModel.RerunAsync();
+            await viewModel.RerunAsync();
         }
     }
 
@@ -56,18 +57,14 @@ public sealed partial class RemoteCommandsView : UserControl
         ViewModel?.Cancel();
     }
 
-    private void OnCopyClick(object? sender, RoutedEventArgs e)
+    private async void OnCopyClick(object? sender, RoutedEventArgs e)
     {
-        if (ViewModel is not { OutputText: { Length: > 0 } text } || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
+        if (ViewModel is not { Output: { Length: > 0 } text } ||
+            TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
         {
             return;
         }
 
-        _ = CopyAsync(clipboard, text);
-    }
-
-    private static async Task CopyAsync(IClipboard clipboard, string text)
-    {
         var transfer = new DataTransfer();
         transfer.Add(DataTransferItem.CreateText(text));
         await clipboard.SetDataAsync(transfer);
@@ -79,11 +76,11 @@ public sealed partial class RemoteCommandsView : UserControl
         ViewModel?.ClearOutput();
     }
 
-    private void OnEditYamlClick(object? sender, RoutedEventArgs e)
+    private async void OnEditYamlClick(object? sender, RoutedEventArgs e)
     {
         if (ViewModel is { } viewModel && TopLevel.GetTopLevel(this) is Window owner)
         {
-            _ = viewModel.OpenYamlEditorAsync(owner);
+            await viewModel.OpenYamlEditorAsync(owner);
         }
     }
 
@@ -92,12 +89,22 @@ public sealed partial class RemoteCommandsView : UserControl
         ViewModel?.OpenExternalEditor();
     }
 
-    private void OnSettingsClick(object? sender, RoutedEventArgs e)
+    private async void OnSettingsClick(object? sender, RoutedEventArgs e)
     {
         if (ViewModel is { } viewModel && TopLevel.GetTopLevel(this) is Window owner)
         {
-            _ = viewModel.OpenSettingsAsync(owner);
+            await viewModel.OpenSettingsAsync(owner);
         }
+    }
+
+    private void OnReloadCatalogClick(object? sender, RoutedEventArgs e)
+    {
+        ViewModel?.ReloadCommands();
+    }
+
+    private void OnToggleHistoryClick(object? sender, RoutedEventArgs e)
+    {
+        ViewModel?.ToggleHistory();
     }
 
     private void OnClearHistoryClick(object? sender, RoutedEventArgs e)
@@ -110,6 +117,35 @@ public sealed partial class RemoteCommandsView : UserControl
         if (sender is ListBox { SelectedItem: RemoteCommandHistoryItem item } && ViewModel is { } viewModel)
         {
             viewModel.RestoreHistoryItem(item);
+            e.Handled = true;
+        }
+    }
+
+    private async void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (ViewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.K)
+        {
+            _commandSearchBox.Focus();
+            _commandSearchBox.SelectAll();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.Enter)
+        {
+            await viewModel.RunAsync();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Escape && viewModel.IsRunning)
+        {
+            viewModel.Cancel();
             e.Handled = true;
         }
     }

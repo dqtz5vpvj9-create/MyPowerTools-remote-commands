@@ -1,4 +1,6 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Text;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using MyPowerTools.AvaloniaSdk;
@@ -10,49 +12,102 @@ namespace RemoteCommands.Surface.ViewModels;
 public sealed class RemoteCommandsViewModel : MptObservableViewModel
 {
     private readonly RemoteCommandsStore _store;
-    private readonly SshCommandExecutor _executor = new();
+    private readonly RemoteCommandExecutionService _executor = new();
+    private readonly Dictionary<string, Dictionary<string, string>> _drafts =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _outputGate = new();
+    private readonly StringBuilder _outputBuffer = new();
+
     private CancellationTokenSource? _cancellation;
     private IReadOnlyList<RemoteCommandDefinition> _commands = [];
-    private int _selectedCommandIndex;
+    private IReadOnlyList<RemoteCommandDefinition> _filteredCommands = [];
+    private RemoteCommandDefinition? _selectedCommand;
+    private string _commandSearch = "";
     private string _host = "";
-    private string _input1 = "";
-    private string _input2 = "";
     private string _output = "";
     private string _statusText = "Idle";
     private string _statusKind = "idle";
     private bool _isRunning;
-    private bool _isSecondInputVisible;
+    private bool _isHistoryVisible;
     private string _historySearch = "";
     private IReadOnlyList<RemoteCommandHistoryItem> _historyItems = [];
-    private RemoteCommandDefinition? _lastCommand;
-    private string _lastInput1 = "";
-    private string _lastInput2 = "";
     private RemoteCommandsSettings _settings;
+    private string _lastCommandId = "";
+    private string _lastHost = "";
+    private Dictionary<string, string>? _lastInputs;
+    private int _outputVersion;
+    private int _outputFlushQueued;
+    private bool _initialized;
 
     public RemoteCommandsViewModel(MptAvaloniaSurfaceContext context)
     {
         _store = new RemoteCommandsStore(context.DataDirectory);
         _settings = _store.LoadSettings();
         _host = _settings.LastHost;
-        _isSecondInputVisible = _settings.TwoPane;
-        _selectedCommandIndex = _settings.LastCommandIndex;
+        _isHistoryVisible = _settings.ShowHistory;
     }
 
     public IReadOnlyList<RemoteCommandDefinition> Commands => _commands;
 
-    public RemoteCommandDefinition? SelectedCommand =>
-        _selectedCommandIndex >= 0 && _selectedCommandIndex < _commands.Count
-            ? _commands[_selectedCommandIndex]
-            : null;
+    public IReadOnlyList<RemoteCommandDefinition> FilteredCommands => _filteredCommands;
 
-    public int SelectedCommandIndex
+    public string CatalogSummary => _filteredCommands.Count == _commands.Count
+        ? $"{_commands.Count} commands"
+        : $"{_filteredCommands.Count} of {_commands.Count} commands";
+
+    public bool HasFilteredCommands => _filteredCommands.Count > 0;
+
+    public bool HasNoFilteredCommands => !HasFilteredCommands;
+
+    public ObservableCollection<RemoteCommandInputViewModel> Inputs { get; } = [];
+
+    public RemoteCommandDefinition? SelectedCommand
     {
-        get => _selectedCommandIndex;
+        get => _selectedCommand;
         set
         {
-            if (SetProperty(ref _selectedCommandIndex, Math.Max(0, value)))
+            if (ReferenceEquals(_selectedCommand, value))
             {
-                OnPropertyChanged(nameof(SelectedCommand));
+                return;
+            }
+
+            SaveCurrentDraft();
+            if (SetProperty(ref _selectedCommand, value))
+            {
+                RebuildInputs();
+                OnPropertyChanged(nameof(SelectedCommandIndex));
+                OnPropertyChanged(nameof(UsesHost));
+                OnPropertyChanged(nameof(ResolvedHost));
+                OnPropertyChanged(nameof(HostEntry));
+                OnPropertyChanged(nameof(IsHostEditable));
+                OnPropertyChanged(nameof(RunnerLabel));
+                OnPropertyChanged(nameof(CommandMetadata));
+                OnPropertyChanged(nameof(CanRun));
+            }
+        }
+    }
+
+    // Compatibility property retained for callers from the first port and persisted settings.
+    public int SelectedCommandIndex
+    {
+        get => SelectedCommand is null ? -1 : IndexOfCommand(SelectedCommand.Id);
+        set
+        {
+            if (value >= 0 && value < _commands.Count)
+            {
+                SelectedCommand = _commands[value];
+            }
+        }
+    }
+
+    public string CommandSearch
+    {
+        get => _commandSearch;
+        set
+        {
+            if (SetProperty(ref _commandSearch, value ?? ""))
+            {
+                ApplyCommandFilter();
             }
         }
     }
@@ -60,26 +115,100 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
     public string Host
     {
         get => _host;
-        set => SetProperty(ref _host, value);
+        set
+        {
+            if (SetProperty(ref _host, value ?? ""))
+            {
+                OnPropertyChanged(nameof(ResolvedHost));
+                OnPropertyChanged(nameof(HostEntry));
+            }
+        }
     }
 
-    public string Input1
+    public string HostEntry
     {
-        get => _input1;
-        set => SetProperty(ref _input1, value);
+        get => ResolvedHost;
+        set
+        {
+            if (IsHostEditable)
+            {
+                Host = value;
+            }
+        }
     }
 
-    public string Input2
+    public bool IsHostEditable => UsesHost && string.IsNullOrWhiteSpace(SelectedCommand?.Host);
+
+    public string ResolvedHost
     {
-        get => _input2;
-        set => SetProperty(ref _input2, value);
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(SelectedCommand?.Host))
+            {
+                return SelectedCommand.Host;
+            }
+
+            if (!string.IsNullOrWhiteSpace(Host))
+            {
+                return Host.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(SelectedCommand?.CatalogDefaultHost))
+            {
+                return SelectedCommand.CatalogDefaultHost;
+            }
+
+            return _settings.DefaultHost;
+        }
+    }
+
+    public bool UsesHost => SelectedCommand?.UsesHost == true;
+
+    public string RunnerLabel => SelectedCommand?.Runner switch
+    {
+        RemoteCommandRunners.Ssh => "SSH",
+        RemoteCommandRunners.Local => "Local process",
+        RemoteCommandRunners.Transform => "Built-in transform",
+        _ => ""
+    };
+
+    public string CommandMetadata
+    {
+        get
+        {
+            if (SelectedCommand is not { } command)
+            {
+                return "Select a command from the catalog.";
+            }
+
+            var parts = new List<string> { command.GroupLabel, RunnerLabel };
+            if (command.TimeoutSeconds > 0 && command.Runner != RemoteCommandRunners.Transform)
+            {
+                parts.Add($"timeout {command.TimeoutSeconds}s");
+            }
+
+            if (command.Tags.Count > 0)
+            {
+                parts.Add(command.TagsText);
+            }
+
+            return string.Join(" · ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
+        }
     }
 
     public string Output
     {
         get => _output;
-        set => SetProperty(ref _output, value);
+        private set
+        {
+            if (SetProperty(ref _output, value ?? ""))
+            {
+                OnPropertyChanged(nameof(HasOutput));
+            }
+        }
     }
+
+    public bool HasOutput => !string.IsNullOrEmpty(Output);
 
     public string StatusText
     {
@@ -100,15 +229,23 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
         {
             if (SetProperty(ref _isRunning, value))
             {
+                OnPropertyChanged(nameof(CanRun));
                 OnPropertyChanged(nameof(CanRerun));
+                OnPropertyChanged(nameof(CanCancel));
             }
         }
     }
 
-    public bool IsSecondInputVisible
+    public bool CanRun => !IsRunning && SelectedCommand is not null;
+
+    public bool CanCancel => IsRunning;
+
+    public bool CanRerun => !IsRunning && !string.IsNullOrWhiteSpace(_lastCommandId);
+
+    public bool IsHistoryVisible
     {
-        get => _isSecondInputVisible;
-        set => SetProperty(ref _isSecondInputVisible, value);
+        get => _isHistoryVisible;
+        set => SetProperty(ref _isHistoryVisible, value);
     }
 
     public string HistorySearch
@@ -116,9 +253,11 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
         get => _historySearch;
         set
         {
-            if (SetProperty(ref _historySearch, value))
+            if (SetProperty(ref _historySearch, value ?? ""))
             {
                 OnPropertyChanged(nameof(FilteredHistoryItems));
+                OnPropertyChanged(nameof(HasFilteredHistoryItems));
+                OnPropertyChanged(nameof(HasNoFilteredHistoryItems));
             }
         }
     }
@@ -140,154 +279,256 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
                     item.Label.Contains(pattern, StringComparison.OrdinalIgnoreCase) ||
                     item.Command.Contains(pattern, StringComparison.OrdinalIgnoreCase) ||
                     item.Output.Contains(pattern, StringComparison.OrdinalIgnoreCase) ||
-                    item.Host.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+                    item.Host.Contains(pattern, StringComparison.OrdinalIgnoreCase) ||
+                    item.EffectiveInputs.Values.Any(value =>
+                        value.Contains(pattern, StringComparison.OrdinalIgnoreCase)))
                 .ToArray();
         }
     }
 
-    public bool CanRerun => !IsRunning && _lastCommand is not null;
+    public bool HasFilteredHistoryItems => FilteredHistoryItems.Count > 0;
+
+    public bool HasNoFilteredHistoryItems => !HasFilteredHistoryItems;
 
     public async Task InitializeAsync()
     {
-        await Task.Run(() => _store.EnsureInitialized()).ConfigureAwait(true);
-        ReloadCommands();
-        ReloadHistory();
-        if (_selectedCommandIndex >= _commands.Count && _commands.Count > 0)
+        if (_initialized)
         {
-            SelectedCommandIndex = 0;
+            return;
+        }
+
+        _initialized = true;
+        try
+        {
+            await Task.Run(_store.EnsureInitialized).ConfigureAwait(true);
+            ReloadCommands();
+            ReloadHistory();
+        }
+        catch (Exception ex)
+        {
+            SetStatus("error", "Catalog could not be loaded");
+            ReplaceOutput(ex.Message);
         }
     }
 
     public void ReloadCommands()
     {
-        _commands = _store.LoadCommands();
-        OnPropertyChanged(nameof(Commands));
-        OnPropertyChanged(nameof(SelectedCommand));
-        if (SelectedCommand is null && _commands.Count > 0)
+        var previousId = SelectedCommand?.Id;
+        IReadOnlyList<RemoteCommandDefinition> loaded;
+        try
         {
-            SelectedCommandIndex = Math.Clamp(_selectedCommandIndex, 0, _commands.Count - 1);
+            loaded = _store.LoadCommands();
         }
+        catch (Exception ex)
+        {
+            SetStatus("error", "commands.yaml is invalid");
+            ReplaceOutput(ex.Message);
+            return;
+        }
+
+        _commands = loaded;
+        OnPropertyChanged(nameof(Commands));
+        ApplyCommandFilter(selectCommand: false);
+
+        var targetId = previousId;
+        if (string.IsNullOrWhiteSpace(targetId))
+        {
+            targetId = _settings.LastCommandId;
+        }
+
+        var target = FindCommand(targetId);
+        if (target is null && _settings.LastCommandIndex >= 0 && _settings.LastCommandIndex < _commands.Count)
+        {
+            target = _commands[_settings.LastCommandIndex];
+        }
+
+        SelectedCommand = target ?? _commands.FirstOrDefault();
+        ApplyCommandFilter(selectCommand: false);
+        SetStatus("idle", $"Loaded {_commands.Count} commands");
     }
 
     public async Task RunAsync()
     {
-        if (IsRunning)
+        if (IsRunning || SelectedCommand is not { } command)
         {
             return;
         }
 
-        var command = SelectedCommand;
-        if (command is null)
+        var values = Inputs.ToDictionary(
+            input => input.Id,
+            input => input.Value,
+            StringComparer.OrdinalIgnoreCase);
+        var missing = command.Inputs
+            .Where(input => input.Required && string.IsNullOrWhiteSpace(values.GetValueOrDefault(input.Id)))
+            .Select(input => input.Label)
+            .ToArray();
+        if (missing.Length > 0)
         {
-            SetStatus("error", "No commands available");
+            SetStatus("error", "Required input missing: " + string.Join(", ", missing));
             return;
         }
 
-        var host = ResolveHost(command);
-        _lastCommand = command;
-        _lastInput1 = Input1;
-        _lastInput2 = Input2;
-        Output = "";
-        SetStatus("running", "Running...");
+        var host = ResolvedHost;
+        if (command.UsesHost && !RemoteCommandExecutionService.IsValidSshDestination(host, out var hostError))
+        {
+            SetStatus("error", hostError ?? "Invalid SSH host");
+            return;
+        }
+
+        SaveCurrentDraft();
+        _lastCommandId = command.Id;
+        _lastHost = host;
+        _lastInputs = new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);
+        OnPropertyChanged(nameof(CanRerun));
+
+        ResetOutputBuffer();
+        SetStatus("running", $"Running {command.Label}…");
         IsRunning = true;
         _cancellation = new CancellationTokenSource();
+        var startedAt = DateTime.Now;
+        var stopwatch = Stopwatch.StartNew();
+        var succeeded = false;
+        int? exitCode = null;
+
         try
         {
-            var outputText = await ExecuteAsync(command, host, _cancellation.Token).ConfigureAwait(true);
-            Output = outputText;
-            _store.AppendHistory(
-                new RemoteCommandHistoryItem(
-                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                    command.Label,
-                    command.Command,
-                    command.Type,
-                    host,
-                    _lastInput1,
-                    _lastInput2,
-                    IsSecondInputVisible,
-                    outputText),
-                _settings.HistoryRetention);
-            ReloadHistory();
-            SetStatus("complete", $"Complete at {DateTime.Now:HH:mm:ss}");
+            var result = await _executor.RunAsync(
+                command,
+                host,
+                values,
+                QueueOutputLine,
+                _cancellation.Token).ConfigureAwait(true);
+            exitCode = result.ExitCode;
+            succeeded = result.ExitCode == 0;
+            await Dispatcher.UIThread.InvokeAsync(() => ReplaceOutput(result.Output));
+            SetStatus(
+                succeeded ? "complete" : "error",
+                succeeded
+                    ? $"Completed at {DateTime.Now:HH:mm:ss}"
+                    : $"Failed with exit code {result.ExitCode}");
         }
         catch (OperationCanceledException)
         {
+            AppendOutputLine("Cancelled.");
             SetStatus("error", "Cancelled");
+        }
+        catch (TimeoutException ex)
+        {
+            AppendOutputLine(ex.Message);
+            SetStatus("error", "Timed out");
         }
         catch (Exception ex)
         {
-            Output = string.IsNullOrWhiteSpace(Output)
-                ? ex.Message
-                : Output + Environment.NewLine + ex.Message;
+            AppendOutputLine(ex.Message);
             SetStatus("error", "Execution failed");
         }
         finally
         {
-            IsRunning = false;
-            _cancellation?.Dispose();
-            _cancellation = null;
-            SaveSessionState();
+            stopwatch.Stop();
+            var finalOutput = SnapshotOutputBuffer();
+            await Dispatcher.UIThread.InvokeAsync(() => Output = finalOutput);
+
+            try
+            {
+                SaveSessionState();
+            }
+            catch (Exception ex)
+            {
+                AppendOutputLine($"Could not save settings: {ex.Message}");
+            }
+
+            var history = CreateHistoryItem(
+                command,
+                host,
+                values,
+                startedAt,
+                succeeded,
+                exitCode,
+                stopwatch.ElapsedMilliseconds,
+                SnapshotOutputBuffer());
+            try
+            {
+                await Task.Run(() => _store.AppendHistory(history, _settings.HistoryRetention))
+                    .ConfigureAwait(true);
+                ReloadHistory();
+            }
+            catch (Exception ex)
+            {
+                AppendOutputLine($"Could not save execution history: {ex.Message}");
+                SetStatus("error", "Execution finished, but history could not be saved");
+            }
+            finally
+            {
+                IsRunning = false;
+                _cancellation?.Dispose();
+                _cancellation = null;
+            }
         }
     }
 
     public async Task RerunAsync()
     {
-        if (IsRunning || _lastCommand is null)
+        if (IsRunning || string.IsNullOrWhiteSpace(_lastCommandId) || _lastInputs is null)
         {
             return;
         }
 
-        var index = _commands
-            .Select((command, position) => (command, position))
-            .FirstOrDefault(pair =>
-                string.Equals(pair.command.Id, _lastCommand.Id, StringComparison.OrdinalIgnoreCase))
-            .position;
-        if (index >= 0 && index < _commands.Count)
+        var command = FindCommand(_lastCommandId);
+        if (command is null)
         {
-            SelectedCommandIndex = index;
+            SetStatus("error", "The previous command no longer exists in commands.yaml");
+            return;
         }
 
-        Input1 = _lastInput1;
-        Input2 = _lastInput2;
+        SelectedCommand = command;
+        if (string.IsNullOrWhiteSpace(command.Host))
+        {
+            Host = _lastHost;
+        }
+
+        ApplyInputValues(_lastInputs);
         await RunAsync().ConfigureAwait(true);
     }
 
     public void Cancel()
     {
-        _cancellation?.Cancel();
-        SetStatus("error", "Cancelling...");
-    }
+        if (_cancellation is null)
+        {
+            return;
+        }
 
-    public string OutputText => Output;
+        _cancellation.Cancel();
+        SetStatus("running", "Cancelling…");
+    }
 
     public void ClearOutput()
     {
-        Output = "";
+        ResetOutputBuffer();
         SetStatus("idle", "Idle");
     }
 
     public void RestoreHistoryItem(RemoteCommandHistoryItem item)
     {
-        var index = _commands
-            .Select((command, position) => (command, position))
-            .FirstOrDefault(pair =>
-                string.Equals(pair.command.Label, item.Label, StringComparison.Ordinal) &&
-                string.Equals(pair.command.Command, item.Command, StringComparison.Ordinal) &&
-                string.Equals(pair.command.Type, item.Type, StringComparison.OrdinalIgnoreCase))
-            .position;
-        if (index >= 0 && index < _commands.Count)
+        var command = FindCommand(item.CommandId);
+        command ??= _commands.FirstOrDefault(candidate =>
+            string.Equals(candidate.Label, item.Label, StringComparison.Ordinal) &&
+            string.Equals(candidate.Command, item.Command, StringComparison.Ordinal) &&
+            string.Equals(candidate.Type, item.Type, StringComparison.OrdinalIgnoreCase));
+        if (command is null)
         {
-            SelectedCommandIndex = index;
+            SetStatus("error", "The command used by this history item is no longer in the catalog");
+            return;
         }
 
-        Input1 = item.Input1;
-        IsSecondInputVisible = item.SecondInputEnabled || !string.IsNullOrEmpty(item.Input2);
-        Input2 = item.Input2;
-        Output = item.Output;
-        if (!string.IsNullOrWhiteSpace(item.Host))
+        SelectedCommand = command;
+        ApplyInputValues(item.EffectiveInputs);
+        if (string.IsNullOrWhiteSpace(command.Host) && !string.IsNullOrWhiteSpace(item.Host))
         {
             Host = item.Host;
         }
+
+        ReplaceOutput(item.Output);
+        SetStatus(item.Succeeded ? "complete" : "error", $"Restored run from {item.Timestamp}");
     }
 
     public void ClearHistory()
@@ -296,10 +537,20 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
         ReloadHistory();
     }
 
+    public void ToggleHistory()
+    {
+        IsHistoryVisible = !IsHistoryVisible;
+    }
+
     public async Task OpenYamlEditorAsync(Window? owner)
     {
-        var dialog = new CommandsYamlEditorDialog(_store.CommandsPath);
-        if (owner is not null && await dialog.ShowDialog<bool?>(owner).ConfigureAwait(true) == true)
+        if (owner is null)
+        {
+            return;
+        }
+
+        var dialog = new CommandsYamlEditorDialog(_store);
+        if (await dialog.ShowDialog<bool?>(owner).ConfigureAwait(true) == true)
         {
             ReloadCommands();
         }
@@ -307,17 +558,20 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
 
     public async Task OpenSettingsAsync(Window? owner)
     {
+        if (owner is null)
+        {
+            return;
+        }
+
+        SaveSessionState();
         var dialog = new SettingsDialog(_settings);
-        if (owner is not null && await dialog.ShowDialog<bool?>(owner).ConfigureAwait(true) == true)
+        if (await dialog.ShowDialog<bool?>(owner).ConfigureAwait(true) == true)
         {
             _settings = dialog.Result;
             _store.SaveSettings(_settings);
-            if (string.IsNullOrWhiteSpace(Host))
-            {
-                Host = _settings.DefaultHost;
-            }
-
-            IsSecondInputVisible = _settings.TwoPane;
+            IsHistoryVisible = _settings.ShowHistory;
+            OnPropertyChanged(nameof(ResolvedHost));
+            OnPropertyChanged(nameof(HostEntry));
         }
     }
 
@@ -325,73 +579,183 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
     {
         try
         {
-            Process.Start(new ProcessStartInfo
+            var startInfo = new ProcessStartInfo
             {
                 FileName = _settings.ExternalEditor,
-                Arguments = $"\"{_store.CommandsPath}\"",
                 UseShellExecute = false
-            });
+            };
+            startInfo.ArgumentList.Add(_store.CommandsPath);
+            Process.Start(startInfo);
         }
         catch (Exception)
         {
-            Process.Start(new ProcessStartInfo
+            try
             {
-                FileName = _store.CommandsPath,
-                UseShellExecute = true
-            });
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = _store.CommandsPath,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                SetStatus("error", $"Could not open commands.yaml: {ex.Message}");
+            }
         }
     }
 
     public void SaveSessionState()
     {
+        SaveCurrentDraft();
         _settings = _settings with
         {
             LastHost = Host,
-            LastCommandIndex = SelectedCommandIndex,
-            TwoPane = IsSecondInputVisible
+            LastCommandIndex = Math.Max(0, SelectedCommandIndex),
+            LastCommandId = SelectedCommand?.Id ?? "",
+            ShowHistory = IsHistoryVisible
         };
         _store.SaveSettings(_settings);
     }
 
-    private async Task<string> ExecuteAsync(
-        RemoteCommandDefinition command,
-        string host,
-        CancellationToken cancellationToken)
+    public void Shutdown()
     {
-        if (string.Equals(command.Type, "py", StringComparison.OrdinalIgnoreCase))
+        _cancellation?.Cancel();
+        try
         {
-            if (!RemoteCommandsTextTransforms.IsKnownTool(command.Command))
-            {
-                throw new InvalidOperationException(
-                    $"Python command tool '{command.Command}' has no C# runtime mapping.");
-            }
-
-            return RemoteCommandsTextTransforms.Apply(command.Command, Input1);
+            SaveSessionState();
         }
-
-        var result = await _executor.RunAsync(
-            host,
-            command.Command,
-            Input1,
-            Input2,
-            line => Dispatcher.UIThread.Post(() => Output += line + Environment.NewLine),
-            cancellationToken).ConfigureAwait(true);
-        return result.Output;
+        catch (Exception)
+        {
+            // Surface teardown must continue when the data directory is unavailable.
+        }
     }
 
-    private string ResolveHost(RemoteCommandDefinition command)
+    private void ApplyCommandFilter(bool selectCommand = true)
     {
-        if (!string.IsNullOrWhiteSpace(command.Host))
+        var pattern = CommandSearch.Trim();
+        _filteredCommands = string.IsNullOrWhiteSpace(pattern)
+            ? _commands
+            : _commands.Where(command => CommandMatches(command, pattern)).ToArray();
+        OnPropertyChanged(nameof(FilteredCommands));
+        OnPropertyChanged(nameof(CatalogSummary));
+        OnPropertyChanged(nameof(HasFilteredCommands));
+        OnPropertyChanged(nameof(HasNoFilteredCommands));
+
+        if (!selectCommand)
         {
-            return command.Host;
+            return;
         }
 
-        if (!string.IsNullOrWhiteSpace(Host))
+        if (_filteredCommands.Count == 0)
         {
-            return Host;
+            SelectedCommand = null;
+            return;
         }
 
-        return _settings.DefaultHost;
+        if (SelectedCommand is null || !_filteredCommands.Any(command =>
+                string.Equals(command.Id, SelectedCommand.Id, StringComparison.OrdinalIgnoreCase)))
+        {
+            SelectedCommand = _filteredCommands[0];
+        }
+    }
+
+    private static bool CommandMatches(RemoteCommandDefinition command, string pattern) =>
+        command.Label.Contains(pattern, StringComparison.OrdinalIgnoreCase) ||
+        command.Id.Contains(pattern, StringComparison.OrdinalIgnoreCase) ||
+        command.GroupLabel.Contains(pattern, StringComparison.OrdinalIgnoreCase) ||
+        command.Description.Contains(pattern, StringComparison.OrdinalIgnoreCase) ||
+        command.Command.Contains(pattern, StringComparison.OrdinalIgnoreCase) ||
+        command.Tags.Any(tag => tag.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+
+    private void RebuildInputs()
+    {
+        Inputs.Clear();
+        if (SelectedCommand is not { } command)
+        {
+            return;
+        }
+
+        _drafts.TryGetValue(command.Id, out var draft);
+        foreach (var definition in command.Inputs)
+        {
+            var value = draft?.GetValueOrDefault(definition.Id) ?? definition.DefaultValue;
+            Inputs.Add(new RemoteCommandInputViewModel(definition, value));
+        }
+    }
+
+    private void SaveCurrentDraft()
+    {
+        if (SelectedCommand is null)
+        {
+            return;
+        }
+
+        _drafts[SelectedCommand.Id] = Inputs.ToDictionary(
+            input => input.Id,
+            input => input.Value,
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void ApplyInputValues(IReadOnlyDictionary<string, string> values)
+    {
+        foreach (var input in Inputs)
+        {
+            input.Value = values.GetValueOrDefault(input.Id, input.Definition.DefaultValue);
+        }
+
+        SaveCurrentDraft();
+    }
+
+    private RemoteCommandDefinition? FindCommand(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return null;
+        }
+
+        return _commands.FirstOrDefault(command =>
+            string.Equals(command.Id, id, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private int IndexOfCommand(string id)
+    {
+        for (var index = 0; index < _commands.Count; index++)
+        {
+            if (string.Equals(_commands[index].Id, id, StringComparison.OrdinalIgnoreCase))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static RemoteCommandHistoryItem CreateHistoryItem(
+        RemoteCommandDefinition command,
+        string host,
+        IReadOnlyDictionary<string, string> values,
+        DateTime startedAt,
+        bool succeeded,
+        int? exitCode,
+        long durationMilliseconds,
+        string output)
+    {
+        var inputs = new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);
+        return new RemoteCommandHistoryItem(
+            Timestamp: startedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+            Label: command.Label,
+            Command: command.Command,
+            Type: command.Type,
+            Host: host,
+            Input1: inputs.GetValueOrDefault("input1", inputs.Values.FirstOrDefault() ?? ""),
+            Input2: inputs.GetValueOrDefault("input2", ""),
+            SecondInputEnabled: inputs.Count > 1,
+            Output: output,
+            CommandId: command.Id,
+            Inputs: inputs,
+            Succeeded: succeeded,
+            ExitCode: exitCode,
+            DurationMilliseconds: durationMilliseconds);
     }
 
     private void ReloadHistory()
@@ -399,6 +763,93 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
         _historyItems = _store.LoadHistory();
         OnPropertyChanged(nameof(HistoryItems));
         OnPropertyChanged(nameof(FilteredHistoryItems));
+        OnPropertyChanged(nameof(HasFilteredHistoryItems));
+        OnPropertyChanged(nameof(HasNoFilteredHistoryItems));
+    }
+
+    private void QueueOutputLine(string line)
+    {
+        lock (_outputGate)
+        {
+            _outputBuffer.AppendLine(line);
+            _outputVersion++;
+        }
+
+        QueueOutputFlush();
+    }
+
+    private void QueueOutputFlush()
+    {
+        if (Interlocked.Exchange(ref _outputFlushQueued, 1) != 0)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(FlushQueuedOutput, DispatcherPriority.Background);
+    }
+
+    private void FlushQueuedOutput()
+    {
+        string text;
+        int version;
+        lock (_outputGate)
+        {
+            text = _outputBuffer.ToString();
+            version = _outputVersion;
+        }
+
+        Output = text;
+        Interlocked.Exchange(ref _outputFlushQueued, 0);
+
+        lock (_outputGate)
+        {
+            if (version != _outputVersion)
+            {
+                QueueOutputFlush();
+            }
+        }
+    }
+
+    private void FlushOutputNow()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            FlushQueuedOutput();
+            return;
+        }
+
+        Dispatcher.UIThread.Post(FlushQueuedOutput);
+    }
+
+    private void AppendOutputLine(string line)
+    {
+        QueueOutputLine(line);
+        FlushOutputNow();
+    }
+
+    private string SnapshotOutputBuffer()
+    {
+        lock (_outputGate)
+        {
+            return _outputBuffer.ToString();
+        }
+    }
+
+    private void ReplaceOutput(string text)
+    {
+        lock (_outputGate)
+        {
+            _outputBuffer.Clear();
+            _outputBuffer.Append(text ?? "");
+            _outputVersion++;
+        }
+
+        Output = text ?? "";
+    }
+
+    private void ResetOutputBuffer()
+    {
+        ReplaceOutput("");
     }
 
     private void SetStatus(string kind, string text)
