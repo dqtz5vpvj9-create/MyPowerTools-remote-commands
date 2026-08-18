@@ -48,12 +48,12 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 app.MapGrpcService<AndroidToolsModuleControlService>();
-app.MapGet("/", () => "AndroidTools powertoold");
+app.MapGet("/", () => "AndroidTools module host");
 await app.RunAsync();
 
 internal sealed record AndroidToolsSidecarEndpoint(string PipeName, string SocketPath)
 {
-    private const string DefaultPipeName = "mypowertools.android-tools-suite.powertoold";
+    private const string DefaultPipeName = "mypowertools.android-tools-suite.module-host";
 
     public static AndroidToolsSidecarEndpoint From(IReadOnlyList<string> arguments)
     {
@@ -99,7 +99,7 @@ internal sealed record AndroidToolsSidecarEndpoint(string PipeName, string Socke
             runtimeDir = Path.GetTempPath();
         }
 
-        return Path.Combine(runtimeDir, "mypowertools", "android-tools-suite", "powertoold.sock");
+        return Path.Combine(runtimeDir, "mypowertools", "android-tools-suite", "module-host.sock");
     }
 }
 
@@ -373,7 +373,7 @@ public sealed class AndroidToolsModuleControlService : ModuleControl.ModuleContr
         {
             Accepted = false,
             State = "module-cancel-not-found",
-            Message = $"Invocation {request.InvocationId} is not running in powertoold."
+            Message = $"Invocation {request.InvocationId} is not running in the Android Tools module host."
         });
     }
 

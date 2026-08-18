@@ -146,7 +146,7 @@
   "currentIntegrationGlobs": [
     "modules/android-tools-suite/**",
     "src/AndroidTools.MyPowerTools/**",
-    "src/AndroidTools.Powertoold/**"
+    "src/AndroidTools.Runtime/**"
   ],
   "currentIntegrationMatchedFileCount": 33,
   "currentIntegrationCopiedFileCount": 33,
