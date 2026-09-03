@@ -37,8 +37,7 @@ public sealed partial class CommandsYamlEditorDialog : Window
             return;
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        File.WriteAllText(_path, text, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        RemoteCommandsFile.Write(_path, text);
         Result = true;
         Close(true);
     }

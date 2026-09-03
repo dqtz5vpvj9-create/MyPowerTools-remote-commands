@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -32,14 +33,17 @@ public sealed partial class RemoteCommandsView : UserControl
     private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
         DetachedFromVisualTree -= OnDetachedFromVisualTree;
-        ViewModel?.SaveSessionState();
+        if (ViewModel is { } viewModel)
+        {
+            SafeFireAsync(() => viewModel.SaveSessionStateAsync());
+        }
     }
 
     private void OnRunClick(object? sender, RoutedEventArgs e)
     {
         if (ViewModel is { } viewModel)
         {
-            _ = viewModel.RunAsync();
+            SafeFireAsync(() => viewModel.RunAsync());
         }
     }
 
@@ -47,7 +51,7 @@ public sealed partial class RemoteCommandsView : UserControl
     {
         if (ViewModel is { } viewModel)
         {
-            _ = viewModel.RerunAsync();
+            SafeFireAsync(() => viewModel.RerunAsync());
         }
     }
 
@@ -63,7 +67,7 @@ public sealed partial class RemoteCommandsView : UserControl
             return;
         }
 
-        _ = CopyAsync(clipboard, text);
+        SafeFireAsync(() => CopyAsync(clipboard, text));
     }
 
     private static async Task CopyAsync(IClipboard clipboard, string text)
@@ -83,7 +87,7 @@ public sealed partial class RemoteCommandsView : UserControl
     {
         if (ViewModel is { } viewModel && TopLevel.GetTopLevel(this) is Window owner)
         {
-            _ = viewModel.OpenYamlEditorAsync(owner);
+            SafeFireAsync(() => viewModel.OpenYamlEditorAsync(owner));
         }
     }
 
@@ -96,13 +100,16 @@ public sealed partial class RemoteCommandsView : UserControl
     {
         if (ViewModel is { } viewModel && TopLevel.GetTopLevel(this) is Window owner)
         {
-            _ = viewModel.OpenSettingsAsync(owner);
+            SafeFireAsync(() => viewModel.OpenSettingsAsync(owner));
         }
     }
 
     private void OnClearHistoryClick(object? sender, RoutedEventArgs e)
     {
-        ViewModel?.ClearHistory();
+        if (ViewModel is { } viewModel)
+        {
+            SafeFireAsync(() => viewModel.ClearHistoryAsync());
+        }
     }
 
     private void OnHistoryDoubleTapped(object? sender, TappedEventArgs e)
@@ -112,5 +119,11 @@ public sealed partial class RemoteCommandsView : UserControl
             viewModel.RestoreHistoryItem(item);
             e.Handled = true;
         }
+    }
+
+    private static async void SafeFireAsync(Func<Task> action, Action<string>? onError = null)
+    {
+        try { await action(); }
+        catch (Exception ex) { onError?.Invoke(ex.Message); Trace.WriteLine($"Unhandled: {ex}"); }
     }
 }

@@ -31,65 +31,72 @@
 
   <Grid MaxWidth="1280"
         HorizontalAlignment="Stretch"
-        RowDefinitions="Auto,*,Auto"
+        RowDefinitions="Auto,Auto,*,Auto"
         RowSpacing="8"
         Margin="{DynamicResource MptCompactPadding}">
     <!-- Toolbar -->
-    <Grid Grid.Row="0"
-          ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
-          ColumnSpacing="8"
-          MinHeight="40">
-      <TextBlock Text="Command:"
-                 VerticalAlignment="Center"
-                 Classes="MptMeta" />
-      <ComboBox Grid.Column="1"
-                ItemsSource="{Binding Commands}"
-                SelectedIndex="{Binding SelectedCommandIndex}"
-                DisplayMemberBinding="{Binding Label}"
-                MinWidth="280"
-                MaxWidth="420"
-                VerticalAlignment="Center"
-                ToolTip.Tip="{Binding SelectedCommand.Description}" />
-      <TextBlock Grid.Column="2"
-                 Text="Host:"
-                 VerticalAlignment="Center"
-                 Classes="MptMeta" />
-      <controls:MptTextBox Grid.Column="3"
-                           Text="{Binding Host, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                           PlaceholderText="r743"
-                           Width="140"
-                           VerticalAlignment="Center" />
-      <controls:MptButton Grid.Column="4"
-                          Content="Run"
-                          Classes="MptPrimaryButton"
-                          Click="OnRunClick"
-                          IsEnabled="{Binding !IsRunning}" />
-      <controls:MptButton Grid.Column="5"
-                          Content="Re-run"
-                          Click="OnRerunClick"
-                          IsEnabled="{Binding CanRerun}" />
-      <controls:MptButton Grid.Column="6"
-                          Content="Cancel"
-                          Click="OnCancelClick"
-                          IsEnabled="{Binding IsRunning}" />
-      <controls:MptButton Grid.Column="7"
-                          Content="Copy"
-                          Click="OnCopyClick"
-                          IsEnabled="{Binding !IsRunning}" />
-      <controls:MptButton Grid.Column="8"
-                          Content="Clear"
-                          Click="OnClearOutputClick"
-                          IsEnabled="{Binding !IsRunning}" />
-      <controls:MptButton Grid.Column="9"
-                          Content="Edit YAML"
-                          Click="OnEditYamlClick" />
-      <controls:MptButton Grid.Column="10"
-                          Content="Settings"
-                          Click="OnSettingsClick" />
-    </Grid>
+    <StackPanel Grid.Row="0" Spacing="6">
+      <!-- Row 1: Core execution flow -->
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto"
+            ColumnSpacing="8"
+            MinHeight="40">
+        <TextBlock Text="Command:"
+                   VerticalAlignment="Center"
+                   Classes="MptMeta" />
+        <ComboBox Grid.Column="1"
+                  ItemsSource="{Binding Commands}"
+                  SelectedIndex="{Binding SelectedCommandIndex}"
+                  DisplayMemberBinding="{Binding Label}"
+                  MinWidth="280"
+                  MaxWidth="420"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="{Binding SelectedCommand.Description}" />
+        <TextBlock Grid.Column="2"
+                   Text="Host:"
+                   VerticalAlignment="Center"
+                   Classes="MptMeta" />
+        <controls:MptTextBox Grid.Column="3"
+                             Text="{Binding Host, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             PlaceholderText="r743"
+                             Width="140"
+                             VerticalAlignment="Center" />
+        <controls:MptButton Grid.Column="4"
+                            Content="Run"
+                            Classes="MptPrimaryButton"
+                            Click="OnRunClick"
+                            IsEnabled="{Binding !IsRunning}" />
+        <controls:MptButton Grid.Column="5"
+                            Content="Cancel"
+                            Click="OnCancelClick"
+                            IsEnabled="{Binding IsRunning}" />
+      </Grid>
+      <!-- Row 2: Secondary actions -->
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <controls:MptButton Content="Re-run"
+                            Click="OnRerunClick"
+                            IsEnabled="{Binding CanRerun}" />
+        <controls:MptButton Content="Copy"
+                            Click="OnCopyClick"
+                            IsEnabled="{Binding !IsRunning}" />
+        <controls:MptButton Content="Clear"
+                            Click="OnClearOutputClick"
+                            IsEnabled="{Binding !IsRunning}" />
+        <controls:MptButton Content="Edit YAML"
+                            Click="OnEditYamlClick" />
+        <controls:MptButton Content="Settings"
+                            Click="OnSettingsClick" />
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Running indicator -->
+    <ProgressBar Grid.Row="1"
+                 IsIndeterminate="True"
+                 IsVisible="{Binding IsRunning}"
+                 Height="3"
+                 HorizontalAlignment="Stretch" />
 
     <!-- Workspace + history -->
-    <Grid Grid.Row="1"
+    <Grid Grid.Row="2"
           ColumnDefinitions="*,320"
           ColumnSpacing="10">
       <Border Grid.Column="0"
@@ -102,7 +109,7 @@
               RowSpacing="8">
           <StackPanel Orientation="Horizontal"
                       Spacing="12">
-            <TextBlock Text="Input 1"
+            <TextBlock Text="Input"
                        Classes="MptMeta"
                        VerticalAlignment="Center" />
             <controls:MptCheckBox Content="2nd input"
@@ -120,7 +127,7 @@
                    TextWrapping="Wrap"
                    MinHeight="110"
                    MaxHeight="180"
-                   PlaceholderText="Input 1..."
+                   PlaceholderText="Input text or file content..."
                    ScrollViewer.VerticalScrollBarVisibility="Auto"
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
 
@@ -131,7 +138,7 @@
                    TextWrapping="Wrap"
                    MinHeight="70"
                    MaxHeight="140"
-                   PlaceholderText="Input 2..."
+                   PlaceholderText="Secondary input..."
                    ScrollViewer.VerticalScrollBarVisibility="Auto"
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                    IsVisible="{Binding IsSecondInputVisible}" />
@@ -193,7 +200,7 @@
     </Grid>
 
     <!-- Status -->
-    <Grid Grid.Row="2"
+    <Grid Grid.Row="3"
           ColumnDefinitions="*,Auto">
       <TextBlock Text="{Binding StatusText}"
                  Classes="MptMeta"

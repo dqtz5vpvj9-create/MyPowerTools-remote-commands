@@ -150,17 +150,17 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
     public async Task InitializeAsync()
     {
         await Task.Run(() => _store.EnsureInitialized()).ConfigureAwait(true);
-        ReloadCommands();
-        ReloadHistory();
+        await ReloadCommandsAsync().ConfigureAwait(true);
+        await ReloadHistoryAsync().ConfigureAwait(true);
         if (_selectedCommandIndex >= _commands.Count && _commands.Count > 0)
         {
             SelectedCommandIndex = 0;
         }
     }
 
-    public void ReloadCommands()
+    public async Task ReloadCommandsAsync()
     {
-        _commands = _store.LoadCommands();
+        _commands = await _store.LoadCommandsAsync().ConfigureAwait(true);
         OnPropertyChanged(nameof(Commands));
         OnPropertyChanged(nameof(SelectedCommand));
         if (SelectedCommand is null && _commands.Count > 0)
@@ -195,7 +195,7 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
         {
             var outputText = await ExecuteAsync(command, host, _cancellation.Token).ConfigureAwait(true);
             Output = outputText;
-            _store.AppendHistory(
+            await _store.AppendHistoryAsync(
                 new RemoteCommandHistoryItem(
                     DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
                     command.Label,
@@ -206,8 +206,8 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
                     _lastInput2,
                     IsSecondInputVisible,
                     outputText),
-                _settings.HistoryRetention);
-            ReloadHistory();
+                _settings.HistoryRetention).ConfigureAwait(true);
+            await ReloadHistoryAsync().ConfigureAwait(true);
             SetStatus("complete", $"Complete at {DateTime.Now:HH:mm:ss}");
         }
         catch (OperationCanceledException)
@@ -226,7 +226,7 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
             IsRunning = false;
             _cancellation?.Dispose();
             _cancellation = null;
-            SaveSessionState();
+            await SaveSessionStateAsync().ConfigureAwait(true);
         }
     }
 
@@ -237,16 +237,15 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
             return;
         }
 
-        var index = _commands
-            .Select((command, position) => (command, position))
-            .FirstOrDefault(pair =>
-                string.Equals(pair.command.Id, _lastCommand.Id, StringComparison.OrdinalIgnoreCase))
-            .position;
-        if (index >= 0 && index < _commands.Count)
+        var index = FindCommandIndex(command =>
+            string.Equals(command.Id, _lastCommand.Id, StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
         {
-            SelectedCommandIndex = index;
+            SetStatus("error", "该命令已不存在");
+            return;
         }
 
+        SelectedCommandIndex = index;
         Input1 = _lastInput1;
         Input2 = _lastInput2;
         await RunAsync().ConfigureAwait(true);
@@ -268,16 +267,17 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
 
     public void RestoreHistoryItem(RemoteCommandHistoryItem item)
     {
-        var index = _commands
-            .Select((command, position) => (command, position))
-            .FirstOrDefault(pair =>
-                string.Equals(pair.command.Label, item.Label, StringComparison.Ordinal) &&
-                string.Equals(pair.command.Command, item.Command, StringComparison.Ordinal) &&
-                string.Equals(pair.command.Type, item.Type, StringComparison.OrdinalIgnoreCase))
-            .position;
-        if (index >= 0 && index < _commands.Count)
+        var index = FindCommandIndex(command =>
+            string.Equals(command.Label, item.Label, StringComparison.Ordinal) &&
+            string.Equals(command.Command, item.Command, StringComparison.Ordinal) &&
+            string.Equals(command.Type, item.Type, StringComparison.OrdinalIgnoreCase));
+        if (index >= 0)
         {
             SelectedCommandIndex = index;
+        }
+        else
+        {
+            SetStatus("error", "该命令已不存在");
         }
 
         Input1 = item.Input1;
@@ -290,10 +290,10 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
         }
     }
 
-    public void ClearHistory()
+    public async Task ClearHistoryAsync()
     {
         _store.ClearHistory();
-        ReloadHistory();
+        await ReloadHistoryAsync().ConfigureAwait(true);
     }
 
     public async Task OpenYamlEditorAsync(Window? owner)
@@ -301,7 +301,7 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
         var dialog = new CommandsYamlEditorDialog(_store.CommandsPath);
         if (owner is not null && await dialog.ShowDialog<bool?>(owner).ConfigureAwait(true) == true)
         {
-            ReloadCommands();
+            await ReloadCommandsAsync().ConfigureAwait(true);
         }
     }
 
@@ -311,7 +311,7 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
         if (owner is not null && await dialog.ShowDialog<bool?>(owner).ConfigureAwait(true) == true)
         {
             _settings = dialog.Result;
-            _store.SaveSettings(_settings);
+            await _store.SaveSettingsAsync(_settings).ConfigureAwait(true);
             if (string.IsNullOrWhiteSpace(Host))
             {
                 Host = _settings.DefaultHost;
@@ -342,7 +342,7 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
         }
     }
 
-    public void SaveSessionState()
+    public async Task SaveSessionStateAsync()
     {
         _settings = _settings with
         {
@@ -350,7 +350,27 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
             LastCommandIndex = SelectedCommandIndex,
             TwoPane = IsSecondInputVisible
         };
-        _store.SaveSettings(_settings);
+        if (_store.SettingsLoadFailed)
+        {
+            // settings.json exists but could not be read, so this session runs on defaults.
+            // Writing them back would replace the user's file; the settings dialog still saves.
+            return;
+        }
+
+        await _store.SaveSettingsAsync(_settings).ConfigureAwait(true);
+    }
+
+    private int FindCommandIndex(Func<RemoteCommandDefinition, bool> predicate)
+    {
+        for (var index = 0; index < _commands.Count; index++)
+        {
+            if (predicate(_commands[index]))
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 
     private async Task<string> ExecuteAsync(
@@ -369,12 +389,19 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
             return RemoteCommandsTextTransforms.Apply(command.Command, Input1);
         }
 
+        const int maxOutputLength = 512 * 1024;
         var result = await _executor.RunAsync(
             host,
             command.Command,
             Input1,
             Input2,
-            line => Dispatcher.UIThread.Post(() => Output += line + Environment.NewLine),
+            line => Dispatcher.UIThread.Post(() =>
+            {
+                var newOutput = Output + line + Environment.NewLine;
+                if (newOutput.Length > maxOutputLength)
+                    newOutput = "... (output truncated) ...\n" + newOutput.Substring(newOutput.Length - maxOutputLength);
+                Output = newOutput;
+            }),
             cancellationToken).ConfigureAwait(true);
         return result.Output;
     }
@@ -394,9 +421,9 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
         return _settings.DefaultHost;
     }
 
-    private void ReloadHistory()
+    private async Task ReloadHistoryAsync()
     {
-        _historyItems = _store.LoadHistory();
+        _historyItems = await _store.LoadHistoryAsync().ConfigureAwait(true);
         OnPropertyChanged(nameof(HistoryItems));
         OnPropertyChanged(nameof(FilteredHistoryItems));
     }

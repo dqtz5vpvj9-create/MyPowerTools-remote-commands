@@ -24,6 +24,8 @@ public sealed partial class SettingsDialog : Window
             ?? throw new InvalidOperationException("Retention input was not found.");
         TwoPaneInput = this.FindControl<MptCheckBox>("TwoPaneInput")
             ?? throw new InvalidOperationException("Two-pane input was not found.");
+        ErrorText = this.FindControl<TextBlock>("ErrorText")
+            ?? throw new InvalidOperationException("Error text was not found.");
         EditorInput.Text = settings.ExternalEditor;
         HostInput.Text = settings.DefaultHost;
         RetentionInput.Text = settings.HistoryRetention.ToString();
@@ -36,8 +38,12 @@ public sealed partial class SettingsDialog : Window
     {
         if (!int.TryParse(RetentionInput.Text, out var retention) || retention is < 10 or > 5000)
         {
+            ErrorText.Text = "History retention must be an integer between 10 and 5000.";
+            ErrorText.IsVisible = true;
             return;
         }
+
+        ErrorText.IsVisible = false;
 
         Result = new RemoteCommandsSettings(
             DefaultHost: string.IsNullOrWhiteSpace(HostInput.Text) ? "r743" : HostInput.Text.Trim(),

@@ -31,6 +31,11 @@
       </StackPanel>
       <controls:MptCheckBox x:Name="TwoPaneInput"
                             Content="Show second input pane" />
+      <TextBlock x:Name="ErrorText"
+                 Foreground="#E53935"
+                 FontSize="12"
+                 TextWrapping="Wrap"
+                 IsVisible="False" />
     </StackPanel>
     <StackPanel Grid.Row="1"
                 Orientation="Horizontal"

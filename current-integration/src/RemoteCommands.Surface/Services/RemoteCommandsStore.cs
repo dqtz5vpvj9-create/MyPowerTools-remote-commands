@@ -1,4 +1,4 @@
-using System.Text;
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace RemoteCommands.Surface.Services;
@@ -50,12 +50,24 @@ public sealed class RemoteCommandsStore
 
     public string CommandsPath => _commandsPath;
 
+    /// <summary>
+    /// True when the last settings read hit a file that exists but could not be used. The
+    /// session state is then held back so an unreadable file is never replaced by defaults.
+    /// </summary>
+    public bool SettingsLoadFailed { get; private set; }
+
+    /// <summary>
+    /// True when the last history read hit a file that exists but could not be used, in which
+    /// case appending is skipped instead of rewriting the file with a single entry.
+    /// </summary>
+    public bool HistoryLoadFailed { get; private set; }
+
     public void EnsureInitialized()
     {
         Directory.CreateDirectory(_dataDirectory);
         if (!File.Exists(_commandsPath))
         {
-            File.WriteAllText(_commandsPath, RemoteCommandsYaml.DefaultCommandsYaml, Encoding.UTF8);
+            RemoteCommandsFile.Write(_commandsPath, RemoteCommandsYaml.DefaultCommandsYaml);
         }
     }
 
@@ -63,6 +75,13 @@ public sealed class RemoteCommandsStore
     {
         EnsureInitialized();
         return RemoteCommandsYaml.ParseCommands(File.ReadAllText(_commandsPath));
+    }
+
+    public async Task<IReadOnlyList<RemoteCommandDefinition>> LoadCommandsAsync()
+    {
+        EnsureInitialized();
+        return RemoteCommandsYaml.ParseCommands(
+            await File.ReadAllTextAsync(_commandsPath).ConfigureAwait(false));
     }
 
     public void SaveCommands(string yaml)
@@ -73,26 +92,33 @@ public sealed class RemoteCommandsStore
         }
 
         EnsureInitialized();
-        File.WriteAllText(_commandsPath, yaml, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        RemoteCommandsFile.Write(_commandsPath, yaml);
     }
 
     public RemoteCommandsSettings LoadSettings()
     {
+        SettingsLoadFailed = false;
+        if (!File.Exists(_settingsPath))
+        {
+            return DefaultSettings;
+        }
+
         try
         {
-            if (File.Exists(_settingsPath))
+            var stored = JsonSerializer.Deserialize<SettingsFile>(File.ReadAllText(_settingsPath), JsonOptions);
+            if (stored is not null)
             {
-                var json = File.ReadAllText(_settingsPath);
-                var stored = JsonSerializer.Deserialize<SettingsFile>(json, JsonOptions);
-                if (stored is not null)
-                {
-                    return stored.ToSettings();
-                }
+                return stored.ToSettings();
             }
+
+            SettingsLoadFailed = true;
         }
-        catch (Exception)
+        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
         {
-            // Corrupt settings fall back to defaults and are rewritten on the next save.
+            SettingsLoadFailed = true;
+            Trace.WriteLine(
+                $"Remote Commands: settings.json could not be read ({exception.Message}); " +
+                "defaults are used for this session and the file is left untouched.");
         }
 
         return DefaultSettings;
@@ -101,32 +127,105 @@ public sealed class RemoteCommandsStore
     public void SaveSettings(RemoteCommandsSettings settings)
     {
         EnsureInitialized();
-        var json = JsonSerializer.Serialize(SettingsFile.FromSettings(settings), JsonOptions);
-        File.WriteAllText(_settingsPath, json, Encoding.UTF8);
+        RemoteCommandsFile.Write(_settingsPath, SerializeSettings(settings));
+        SettingsLoadFailed = false;
+    }
+
+    public async Task SaveSettingsAsync(RemoteCommandsSettings settings)
+    {
+        EnsureInitialized();
+        await RemoteCommandsFile.WriteAsync(_settingsPath, SerializeSettings(settings)).ConfigureAwait(false);
+        SettingsLoadFailed = false;
     }
 
     public IReadOnlyList<RemoteCommandHistoryItem> LoadHistory()
     {
-        try
+        HistoryLoadFailed = false;
+        if (!File.Exists(_historyPath))
         {
-            if (File.Exists(_historyPath))
-            {
-                var json = File.ReadAllText(_historyPath);
-                return JsonSerializer.Deserialize<List<RemoteCommandHistoryItem>>(json, JsonOptions) ?? [];
-            }
-        }
-        catch (Exception)
-        {
-            // Corrupt history is ignored; a fresh list is written on the next run.
+            return [];
         }
 
-        return [];
+        try
+        {
+            return ReadHistory(File.ReadAllText(_historyPath));
+        }
+        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
+        {
+            return ReportHistoryReadFailure(exception);
+        }
+    }
+
+    public async Task<IReadOnlyList<RemoteCommandHistoryItem>> LoadHistoryAsync()
+    {
+        HistoryLoadFailed = false;
+        if (!File.Exists(_historyPath))
+        {
+            return [];
+        }
+
+        try
+        {
+            return ReadHistory(await File.ReadAllTextAsync(_historyPath).ConfigureAwait(false));
+        }
+        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
+        {
+            return ReportHistoryReadFailure(exception);
+        }
     }
 
     public void AppendHistory(RemoteCommandHistoryItem item, int retention)
     {
         EnsureInitialized();
         var items = LoadHistory().ToList();
+        if (HistoryLoadFailed)
+        {
+            return;
+        }
+
+        RemoteCommandsFile.Write(_historyPath, SerializeHistory(items, item, retention));
+    }
+
+    public async Task AppendHistoryAsync(RemoteCommandHistoryItem item, int retention)
+    {
+        EnsureInitialized();
+        var items = (await LoadHistoryAsync().ConfigureAwait(false)).ToList();
+        if (HistoryLoadFailed)
+        {
+            return;
+        }
+
+        await RemoteCommandsFile.WriteAsync(_historyPath, SerializeHistory(items, item, retention))
+            .ConfigureAwait(false);
+    }
+
+    public void ClearHistory()
+    {
+        EnsureInitialized();
+        RemoteCommandsFile.Write(_historyPath, "[]");
+        HistoryLoadFailed = false;
+    }
+
+    private static IReadOnlyList<RemoteCommandHistoryItem> ReadHistory(string json) =>
+        JsonSerializer.Deserialize<List<RemoteCommandHistoryItem>>(json, JsonOptions) ?? [];
+
+    private IReadOnlyList<RemoteCommandHistoryItem> ReportHistoryReadFailure(Exception exception)
+    {
+        HistoryLoadFailed = true;
+        Trace.WriteLine(
+            $"Remote Commands: history.json could not be read ({exception.Message}); " +
+            "the file is left untouched until the history is cleared.");
+        return [];
+    }
+
+    private static string SerializeSettings(RemoteCommandsSettings settings) =>
+        JsonSerializer.Serialize(SettingsFile.FromSettings(settings), JsonOptions);
+
+    private static string SerializeHistory(
+        List<RemoteCommandHistoryItem> items,
+        RemoteCommandHistoryItem item,
+        int retention)
+    {
         items.Insert(0, item);
         var cap = Math.Clamp(retention, 10, 5000);
         if (items.Count > cap)
@@ -134,14 +233,7 @@ public sealed class RemoteCommandsStore
             items.RemoveRange(cap, items.Count - cap);
         }
 
-        var json = JsonSerializer.Serialize(items, JsonOptions);
-        File.WriteAllText(_historyPath, json, Encoding.UTF8);
-    }
-
-    public void ClearHistory()
-    {
-        EnsureInitialized();
-        File.WriteAllText(_historyPath, "[]", Encoding.UTF8);
+        return JsonSerializer.Serialize(items, JsonOptions);
     }
 
     private static RemoteCommandsSettings DefaultSettings => new(
