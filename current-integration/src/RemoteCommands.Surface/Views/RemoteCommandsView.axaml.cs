@@ -121,9 +121,59 @@ public sealed partial class RemoteCommandsView : UserControl
         }
     }
 
+    private void OnHistoryLoadClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: RemoteCommandHistoryItem item } && ViewModel is { } viewModel)
+        {
+            viewModel.RestoreHistoryItem(item);
+            e.Handled = true;
+        }
+    }
+
+    private void OnHistoryRunClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { DataContext: RemoteCommandHistoryItem item } ||
+            ViewModel is not { IsRunning: false } viewModel)
+        {
+            return;
+        }
+
+        var commandStillExists = viewModel.Commands.Any(command =>
+            RemoteCommandHistoryMatcher.Matches(
+                command.Label,
+                command.Command,
+                command.Type,
+                item.Label,
+                item.Command,
+                item.Type));
+        viewModel.RestoreHistoryItem(item);
+        if (commandStillExists)
+        {
+            SafeFireAsync(() => viewModel.RunAsync());
+        }
+
+        e.Handled = true;
+    }
+
     private static async void SafeFireAsync(Func<Task> action, Action<string>? onError = null)
     {
         try { await action(); }
         catch (Exception ex) { onError?.Invoke(ex.Message); Trace.WriteLine($"Unhandled: {ex}"); }
+    }
+}
+
+public static class RemoteCommandHistoryMatcher
+{
+    public static bool Matches(
+        string commandLabel,
+        string commandText,
+        string commandType,
+        string historyLabel,
+        string historyCommand,
+        string historyType)
+    {
+        return string.Equals(commandLabel, historyLabel, StringComparison.Ordinal) &&
+               string.Equals(commandText, historyCommand, StringComparison.Ordinal) &&
+               string.Equals(commandType, historyType, StringComparison.OrdinalIgnoreCase);
     }
 }

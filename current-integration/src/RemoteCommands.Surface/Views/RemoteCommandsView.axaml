@@ -97,7 +97,7 @@
 
     <!-- Workspace + history -->
     <Grid Grid.Row="2"
-          ColumnDefinitions="*,320"
+          ColumnDefinitions="*,360"
           ColumnSpacing="10">
       <Border Grid.Column="0"
               Padding="12"
@@ -177,17 +177,35 @@
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.ItemTemplate>
               <DataTemplate>
-                <StackPanel Spacing="2">
-                  <TextBlock Classes="MptMeta"
-                             Text="{Binding Timestamp}" />
-                  <TextBlock Text="{Binding Label}"
-                             FontWeight="SemiBold"
-                             TextTrimming="CharacterEllipsis" />
-                  <TextBlock Classes="MptMeta"
-                             Text="{Binding Output}"
-                             MaxLines="2"
-                             TextTrimming="CharacterEllipsis" />
-                </StackPanel>
+                <Grid ColumnDefinitions="*,Auto"
+                      ColumnSpacing="8">
+                  <StackPanel Spacing="2">
+                    <TextBlock Classes="MptMeta"
+                               Text="{Binding Timestamp}" />
+                    <TextBlock Text="{Binding Label}"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Classes="MptMeta"
+                               Text="{Binding Output}"
+                               MaxLines="2"
+                               TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1"
+                              Orientation="Horizontal"
+                              Spacing="4"
+                              VerticalAlignment="Center">
+                    <controls:MptButton Content="Load"
+                                        Click="OnHistoryLoadClick"
+                                        Padding="8,4"
+                                        MinWidth="50"
+                                        ToolTip.Tip="Restore this command, host and inputs" />
+                    <controls:MptButton Content="Run"
+                                        Click="OnHistoryRunClick"
+                                        Padding="8,4"
+                                        MinWidth="46"
+                                        ToolTip.Tip="Restore and run this history item" />
+                  </StackPanel>
+                </Grid>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
