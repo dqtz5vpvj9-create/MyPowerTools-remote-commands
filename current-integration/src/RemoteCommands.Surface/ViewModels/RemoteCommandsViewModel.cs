@@ -27,6 +27,8 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
     private RemoteCommandDefinition? _lastCommand;
     private string _lastInput1 = "";
     private string _lastInput2 = "";
+    private string _lastHost = "";
+    private bool _lastSecondInputVisible;
     private RemoteCommandsSettings _settings;
 
     public RemoteCommandsViewModel(MptAvaloniaSurfaceContext context)
@@ -146,6 +148,8 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
     }
 
     public bool CanRerun => !IsRunning && _lastCommand is not null;
+    public string LastRunSummary => _lastCommand is null ? "尚未运行命令" :
+        $"重跑 {_lastCommand.Label} · {(string.Equals(_lastCommand.Type, "py", StringComparison.OrdinalIgnoreCase) ? "本地转换" : _lastHost)} · 使用上次输入";
 
     public async Task InitializeAsync()
     {
@@ -183,17 +187,27 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
             return;
         }
 
-        var host = ResolveHost(command);
+        await RunCoreAsync(command, ResolveHost(command), Input1, Input2, IsSecondInputVisible).ConfigureAwait(true);
+    }
+
+    private async Task RunCoreAsync(
+        RemoteCommandDefinition command, string host, string input1, string input2, bool secondInputVisible)
+    {
+        // Snapshot every execution argument before the first await. Editing the workspace while
+        // output streams in must not rewrite history or change what "Rerun" executes.
         _lastCommand = command;
-        _lastInput1 = Input1;
-        _lastInput2 = Input2;
+        _lastInput1 = input1;
+        _lastInput2 = input2;
+        _lastHost = host;
+        _lastSecondInputVisible = secondInputVisible;
+        OnPropertyChanged(nameof(LastRunSummary));
         Output = "";
         SetStatus("running", "Running...");
         IsRunning = true;
         _cancellation = new CancellationTokenSource();
         try
         {
-            var outputText = await ExecuteAsync(command, host, _cancellation.Token).ConfigureAwait(true);
+            var outputText = await ExecuteAsync(command, host, input1, input2, _cancellation.Token).ConfigureAwait(true);
             Output = outputText;
             await _store.AppendHistoryAsync(
                 new RemoteCommandHistoryItem(
@@ -202,9 +216,9 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
                     command.Command,
                     command.Type,
                     host,
-                    _lastInput1,
-                    _lastInput2,
-                    IsSecondInputVisible,
+                    input1,
+                    input2,
+                    secondInputVisible,
                     outputText),
                 _settings.HistoryRetention).ConfigureAwait(true);
             await ReloadHistoryAsync().ConfigureAwait(true);
@@ -245,10 +259,17 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
             return;
         }
 
+        var command = _lastCommand;
+        var host = _lastHost;
+        var input1 = _lastInput1;
+        var input2 = _lastInput2;
+        var secondInputVisible = _lastSecondInputVisible;
         SelectedCommandIndex = index;
-        Input1 = _lastInput1;
-        Input2 = _lastInput2;
-        await RunAsync().ConfigureAwait(true);
+        Host = host;
+        Input1 = input1;
+        Input2 = input2;
+        IsSecondInputVisible = secondInputVisible;
+        await RunCoreAsync(command, host, input1, input2, secondInputVisible).ConfigureAwait(true);
     }
 
     public void Cancel()
@@ -376,6 +397,8 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
     private async Task<string> ExecuteAsync(
         RemoteCommandDefinition command,
         string host,
+        string input1,
+        string input2,
         CancellationToken cancellationToken)
     {
         if (string.Equals(command.Type, "py", StringComparison.OrdinalIgnoreCase))
@@ -386,15 +409,15 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
                     $"Python command tool '{command.Command}' has no C# runtime mapping.");
             }
 
-            return RemoteCommandsTextTransforms.Apply(command.Command, Input1);
+            return RemoteCommandsTextTransforms.Apply(command.Command, input1);
         }
 
         const int maxOutputLength = 512 * 1024;
         var result = await _executor.RunAsync(
             host,
             command.Command,
-            Input1,
-            Input2,
+            input1,
+            input2,
             line => Dispatcher.UIThread.Post(() =>
             {
                 var newOutput = Output + line + Environment.NewLine;
