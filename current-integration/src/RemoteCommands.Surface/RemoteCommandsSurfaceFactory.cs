@@ -7,10 +7,7 @@ using RemoteCommands.Surface.Views;
 namespace RemoteCommands.Surface;
 
 /// <summary>
-/// Dotnet-surface factory for the Remote Commands tool. Loaded by the Shell's DotnetSurfaceLoader
-/// from this assembly via the tool route manifest fields. Builds the page3-equivalent workspace:
-/// command catalog, host/inputs/output, SSH or text-transform execution, history, settings and
-/// commands.yaml editing.
+/// Dotnet-surface factory for the Remote Commands catalog workspace.
 /// </summary>
 public sealed class RemoteCommandsSurfaceFactory : IMptAvaloniaSurfaceFactory
 {

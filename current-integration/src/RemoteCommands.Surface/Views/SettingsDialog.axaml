@@ -2,37 +2,62 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:MyPowerTools.UI.Controls"
         x:Class="RemoteCommands.Surface.Views.SettingsDialog"
-        Title="Settings"
-        Width="480"
-        Height="360"
-        MinWidth="420"
-        MinHeight="300"
+        Title="Remote Commands settings"
+        Width="520"
+        Height="430"
+        MinWidth="440"
+        MinHeight="360"
         Background="{DynamicResource MptBrushAppBackground}"
         WindowStartupLocation="CenterOwner">
-  <Grid RowDefinitions="*,Auto"
-        RowSpacing="10"
-        Margin="16">
-    <StackPanel Spacing="14"
+  <Grid RowDefinitions="Auto,*,Auto,Auto"
+        RowSpacing="12"
+        Margin="18">
+    <StackPanel Spacing="3">
+      <TextBlock Text="Remote Commands settings"
+                 FontSize="20"
+                 FontWeight="SemiBold" />
+      <TextBlock Text="Catalog-specific hosts and timeouts remain in commands.yaml."
+                 Classes="MptMeta" />
+    </StackPanel>
+
+    <StackPanel Grid.Row="1"
+                Spacing="14"
                 VerticalAlignment="Top">
-      <StackPanel Spacing="4">
-        <TextBlock Classes="MptSectionTitle" Text="External editor command" />
+      <StackPanel Spacing="5">
+        <TextBlock Text="External editor executable"
+                   FontWeight="SemiBold" />
         <controls:MptTextBox x:Name="EditorInput"
                              PlaceholderText="code" />
+        <TextBlock Text="The executable receives commands.yaml as its first argument."
+                   Classes="MptMeta" />
       </StackPanel>
-      <StackPanel Spacing="4">
-        <TextBlock Classes="MptSectionTitle" Text="Default SSH host" />
+
+      <StackPanel Spacing="5">
+        <TextBlock Text="Default SSH destination"
+                   FontWeight="SemiBold" />
         <controls:MptTextBox x:Name="HostInput"
-                             PlaceholderText="r743" />
+                             PlaceholderText="r743 or user@host" />
       </StackPanel>
-      <StackPanel Spacing="4">
-        <TextBlock Classes="MptSectionTitle" Text="History retention" />
+
+      <StackPanel Spacing="5">
+        <TextBlock Text="History retention"
+                   FontWeight="SemiBold" />
         <controls:MptTextBox x:Name="RetentionInput"
                              PlaceholderText="500" />
+        <TextBlock Text="Accepted range: 10–5000 runs."
+                   Classes="MptMeta" />
       </StackPanel>
-      <controls:MptCheckBox x:Name="TwoPaneInput"
-                            Content="Show second input pane" />
+
+      <controls:MptCheckBox x:Name="ShowHistoryInput"
+                            Content="Show the history panel when the tool opens" />
     </StackPanel>
-    <StackPanel Grid.Row="1"
+
+    <TextBlock Grid.Row="2"
+               x:Name="ValidationText"
+               Classes="MptMeta"
+               TextWrapping="Wrap" />
+
+    <StackPanel Grid.Row="3"
                 Orientation="Horizontal"
                 Spacing="8"
                 HorizontalAlignment="Right">
