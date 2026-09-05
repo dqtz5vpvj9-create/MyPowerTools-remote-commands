@@ -9,12 +9,98 @@
   "type": "dotnet-surface",
   "primaryRouteId": "workspace",
   "routes": [
-    { "routeId": "workspace", "surfaceId": "android-tools.remote-commands.workspace", "title": "Remote Commands", "icon": "route.workspace", "surface": { "kind": "dotnet", "assembly": "surface/RemoteCommands.Surface.dll", "type": "RemoteCommands.Surface.RemoteCommandsSurfaceFactory" } }
+    {
+      "routeId": "workspace",
+      "surfaceId": "android-tools.remote-commands.workspace",
+      "title": "Remote Commands",
+      "icon": "route.workspace",
+      "surface": {
+        "kind": "dotnet",
+        "assembly": "surface/RemoteCommands.Surface.dll",
+        "type": "RemoteCommands.Surface.RemoteCommandsSurfaceFactory"
+      }
+    }
   ],
   "homeCard": {
     "summary": "Browse command templates, provide inputs, and run them on a remote host over SSH.",
     "primaryActionLabel": "Open Remote Commands",
     "statusBinding": "module.status",
     "order": 30
-  }
+  },
+  "shortcuts": [
+    {
+      "id": "remote-commands.ui.run",
+      "title": "Run current command",
+      "context": "",
+      "allowInTextInput": true,
+      "bindings": [
+        {
+          "gesture": "Ctrl+Enter",
+          "platform": "windows"
+        },
+        {
+          "gesture": "Ctrl+Enter",
+          "platform": "linux"
+        },
+        {
+          "gesture": "Cmd+Enter",
+          "platform": "macos"
+        }
+      ]
+    },
+    {
+      "id": "remote-commands.ui.rerun",
+      "title": "Rerun original host and inputs",
+      "context": "",
+      "allowInTextInput": true,
+      "bindings": [
+        {
+          "gesture": "Ctrl+Shift+Enter",
+          "platform": "windows"
+        },
+        {
+          "gesture": "Ctrl+Shift+Enter",
+          "platform": "linux"
+        },
+        {
+          "gesture": "Cmd+Shift+Enter",
+          "platform": "macos"
+        }
+      ]
+    },
+    {
+      "id": "remote-commands.ui.cancel",
+      "title": "Cancel command",
+      "context": "",
+      "allowInTextInput": true,
+      "bindings": [
+        {
+          "gesture": "Ctrl+Escape",
+          "platform": "windows"
+        },
+        {
+          "gesture": "Ctrl+Escape",
+          "platform": "linux"
+        },
+        {
+          "gesture": "Cmd+Escape",
+          "platform": "macos"
+        }
+      ]
+    },
+    {
+      "id": "remote-commands.ui.copy-output",
+      "title": "Copy output",
+      "context": "",
+      "allowInTextInput": false,
+      "bindings": []
+    },
+    {
+      "id": "remote-commands.ui.clear-output",
+      "title": "Clear output",
+      "context": "",
+      "allowInTextInput": false,
+      "bindings": []
+    }
+  ]
 }
