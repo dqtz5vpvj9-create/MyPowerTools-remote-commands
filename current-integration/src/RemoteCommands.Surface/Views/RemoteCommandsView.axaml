@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:shortcuts="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:RemoteCommands.Surface.ViewModels"
@@ -63,23 +64,23 @@
         <controls:MptButton Grid.Column="4"
                             Content="Run"
                             Classes="MptPrimaryButton"
-                            Click="OnRunClick"
+                            Click="OnRunClick" shortcuts:MptShortcutHint.CommandId="remote-commands.ui.run"
                             IsEnabled="{Binding !IsRunning}" />
         <controls:MptButton Grid.Column="5"
                             Content="Cancel"
-                            Click="OnCancelClick"
+                            Click="OnCancelClick" shortcuts:MptShortcutHint.CommandId="remote-commands.ui.cancel"
                             IsEnabled="{Binding IsRunning}" />
       </Grid>
       <!-- Row 2: Secondary actions -->
       <StackPanel Orientation="Horizontal" Spacing="8">
         <controls:MptButton Content="Re-run"
-                            Click="OnRerunClick"
-                            IsEnabled="{Binding CanRerun}" ToolTip.Tip="{Binding LastRunSummary}" />
+                            Click="OnRerunClick" shortcuts:MptShortcutHint.CommandId="remote-commands.ui.rerun"
+                            IsEnabled="{Binding CanRerun}" shortcuts:MptShortcutHint.Label="{Binding LastRunSummary}" />
         <controls:MptButton Content="Copy"
-                            Click="OnCopyClick"
+                            Click="OnCopyClick" shortcuts:MptShortcutHint.CommandId="remote-commands.ui.copy-output"
                             IsEnabled="{Binding !IsRunning}" />
         <controls:MptButton Content="Clear"
-                            Click="OnClearOutputClick"
+                            Click="OnClearOutputClick" shortcuts:MptShortcutHint.CommandId="remote-commands.ui.clear-output"
                             IsEnabled="{Binding !IsRunning}" />
         <controls:MptButton Content="Edit YAML"
                             Click="OnEditYamlClick" />
