@@ -75,7 +75,7 @@
       <StackPanel Orientation="Horizontal" Spacing="8">
         <controls:MptButton Content="Re-run"
                             Click="OnRerunClick" shortcuts:MptShortcutHint.CommandId="remote-commands.ui.rerun"
-                            IsEnabled="{Binding CanRerun}" ToolTip.Tip="{Binding LastRunSummary}" />
+                            IsEnabled="{Binding CanRerun}" shortcuts:MptShortcutHint.Label="{Binding LastRunSummary}" />
         <controls:MptButton Content="Copy"
                             Click="OnCopyClick" shortcuts:MptShortcutHint.CommandId="remote-commands.ui.copy-output"
                             IsEnabled="{Binding !IsRunning}" />
