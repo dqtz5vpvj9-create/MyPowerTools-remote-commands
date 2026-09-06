@@ -56,11 +56,7 @@
                    Text="Host:"
                    VerticalAlignment="Center"
                    Classes="MptMeta" />
-        <controls:MptTextBox Grid.Column="3"
-                             Text="{Binding Host, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             PlaceholderText="r743"
-                             Width="140"
-                             VerticalAlignment="Center" />
+        <ComboBox Grid.Column="3" ItemsSource="{Binding HostOptions}" SelectedItem="{Binding Host, Mode=TwoWay}" IsEnabled="{Binding IsHostSelectionEnabled}" ToolTip.Tip="{Binding HostSelectionHint}" MinWidth="140" />
         <controls:MptButton Grid.Column="4"
                             Content="Run"
                             Classes="MptPrimaryButton"
@@ -98,7 +94,7 @@
 
     <!-- Workspace + history -->
     <Grid Grid.Row="2"
-          ColumnDefinitions="*,320"
+          ColumnDefinitions="*,360"
           ColumnSpacing="10">
       <Border Grid.Column="0"
               Padding="12"
@@ -110,7 +106,7 @@
               RowSpacing="8">
           <StackPanel Orientation="Horizontal"
                       Spacing="12">
-            <TextBlock Text="Input"
+            <TextBlock Text="{Binding Input1Label}"
                        Classes="MptMeta"
                        VerticalAlignment="Center" />
             <controls:MptCheckBox Content="2nd input"
@@ -128,7 +124,7 @@
                    TextWrapping="Wrap"
                    MinHeight="110"
                    MaxHeight="180"
-                   PlaceholderText="Input text or file content..."
+                   PlaceholderText="{Binding Input1Placeholder}"
                    ScrollViewer.VerticalScrollBarVisibility="Auto"
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
 
@@ -139,7 +135,7 @@
                    TextWrapping="Wrap"
                    MinHeight="70"
                    MaxHeight="140"
-                   PlaceholderText="Secondary input..."
+                   PlaceholderText="{Binding Input2Placeholder}"
                    ScrollViewer.VerticalScrollBarVisibility="Auto"
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                    IsVisible="{Binding IsSecondInputVisible}" />
@@ -178,17 +174,35 @@
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.ItemTemplate>
               <DataTemplate>
-                <StackPanel Spacing="2">
-                  <TextBlock Classes="MptMeta"
-                             Text="{Binding Timestamp}" />
-                  <TextBlock Text="{Binding Label}"
-                             FontWeight="SemiBold"
-                             TextTrimming="CharacterEllipsis" />
-                  <TextBlock Classes="MptMeta"
-                             Text="{Binding Output}"
-                             MaxLines="2"
-                             TextTrimming="CharacterEllipsis" />
-                </StackPanel>
+                <Grid ColumnDefinitions="*,Auto"
+                      ColumnSpacing="8">
+                  <StackPanel Spacing="2">
+                    <TextBlock Classes="MptMeta"
+                               Text="{Binding Timestamp}" />
+                    <TextBlock Text="{Binding Label}"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Classes="MptMeta"
+                               Text="{Binding Output}"
+                               MaxLines="2"
+                               TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1"
+                              Orientation="Horizontal"
+                              Spacing="4"
+                              VerticalAlignment="Center">
+                    <controls:MptButton Content="Load"
+                                        Click="OnHistoryLoadClick"
+                                        Padding="8,4"
+                                        MinWidth="50"
+                                        ToolTip.Tip="Restore this command, host and inputs" />
+                    <controls:MptButton Content="Run"
+                                        Click="OnHistoryRunClick"
+                                        Padding="8,4"
+                                        MinWidth="46"
+                                        ToolTip.Tip="Restore and run this history item" />
+                  </StackPanel>
+                </Grid>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>

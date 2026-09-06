@@ -1,20 +1,22 @@
 using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Threading;
+using RemoteCommands.Surface.Views;
 using MyPowerTools.AvaloniaSdk;
 using RemoteCommands.Surface.Services;
-using RemoteCommands.Surface.Views;
 
 namespace RemoteCommands.Surface.ViewModels;
 
-public sealed class RemoteCommandsViewModel : MptObservableViewModel
+public sealed partial class RemoteCommandsViewModel : MptObservableViewModel
 {
     private readonly RemoteCommandsStore _store;
     private readonly SshCommandExecutor _executor = new();
     private CancellationTokenSource? _cancellation;
     private IReadOnlyList<RemoteCommandDefinition> _commands = [];
+    private IReadOnlyList<string> _hostOptions = [];
     private int _selectedCommandIndex;
     private string _host = "";
+    private string _lastUserHost = "";
     private string _input1 = "";
     private string _input2 = "";
     private string _output = "";
@@ -29,13 +31,17 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
     private string _lastInput2 = "";
     private string _lastHost = "";
     private bool _lastSecondInputVisible;
+    public string LastRunSummary => _lastCommand is null ? "尚未运行命令" : $"重跑 {_lastCommand.Label} · {_lastHost} · 使用上次输入";
     private RemoteCommandsSettings _settings;
 
     public RemoteCommandsViewModel(MptAvaloniaSurfaceContext context)
     {
         _store = new RemoteCommandsStore(context.DataDirectory);
         _settings = _store.LoadSettings();
-        _host = _settings.LastHost;
+        _host = RemoteCommandsStore.IsValidHost(_settings.LastHost)
+            ? _settings.LastHost
+            : _settings.DefaultHost;
+        _lastUserHost = _host;
         _isSecondInputVisible = _settings.TwoPane;
         _selectedCommandIndex = _settings.LastCommandIndex;
     }
@@ -52,18 +58,75 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
         get => _selectedCommandIndex;
         set
         {
-            if (SetProperty(ref _selectedCommandIndex, Math.Max(0, value)))
+            var normalized = _commands.Count == 0
+                ? 0
+                : Math.Clamp(value, 0, _commands.Count - 1);
+            if (normalized == _selectedCommandIndex)
             {
-                OnPropertyChanged(nameof(SelectedCommand));
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(SelectedCommand?.Host) &&
+                RemoteCommandsStore.IsValidHost(_host))
+            {
+                _lastUserHost = _host;
+            }
+
+            if (SetProperty(ref _selectedCommandIndex, normalized))
+            {
+                OnSelectedCommandChanged();
             }
         }
     }
 
+    public IReadOnlyList<string> HostOptions => _hostOptions;
+
     public string Host
     {
         get => _host;
-        set => SetProperty(ref _host, value);
+        set
+        {
+            var normalized = value?.Trim() ?? "";
+            if (SetProperty(ref _host, normalized) &&
+                string.IsNullOrWhiteSpace(SelectedCommand?.Host) &&
+                RemoteCommandsStore.IsValidHost(normalized))
+            {
+                _lastUserHost = normalized;
+            }
+        }
     }
+
+    public bool UsesRemoteHost => SelectedCommand?.UsesRemoteHost == true;
+
+    public bool IsHostSelectionEnabled =>
+        UsesRemoteHost &&
+        string.IsNullOrWhiteSpace(SelectedCommand?.Host) &&
+        !IsRunning;
+
+    public string HostSelectionHint
+    {
+        get
+        {
+            if (!UsesRemoteHost)
+            {
+                return "This command runs locally and does not use SSH.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(SelectedCommand?.Host))
+            {
+                return $"This command always runs on {SelectedCommand.Host}.";
+            }
+
+            return "Choose a saved SSH host. Hosts are managed in Settings.";
+        }
+    }
+
+    public string Input1Label => SelectedCommand?.Input1Label ?? "Input";
+    public string Input1Placeholder =>
+        SelectedCommand?.Input1Placeholder ?? "Paste or type the command input.";
+    public string Input2Label => SelectedCommand?.Input2Label ?? "Additional input";
+    public string Input2Placeholder =>
+        SelectedCommand?.Input2Placeholder ?? "Optional second input.";
 
     public string Input1
     {
@@ -103,6 +166,7 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
             if (SetProperty(ref _isRunning, value))
             {
                 OnPropertyChanged(nameof(CanRerun));
+                OnPropertyChanged(nameof(IsHostSelectionEnabled));
             }
         }
     }
@@ -148,8 +212,7 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
     }
 
     public bool CanRerun => !IsRunning && _lastCommand is not null;
-    public string LastRunSummary => _lastCommand is null ? "尚未运行命令" :
-        $"重跑 {_lastCommand.Label} · {(string.Equals(_lastCommand.Type, "py", StringComparison.OrdinalIgnoreCase) ? "本地转换" : _lastHost)} · 使用上次输入";
+    public string OutputText => Output;
 
     public async Task InitializeAsync()
     {
@@ -165,6 +228,8 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
     public async Task ReloadCommandsAsync()
     {
         _commands = await _store.LoadCommandsAsync().ConfigureAwait(true);
+        ReloadHostOptions();
+        OnSelectedCommandChanged();
         OnPropertyChanged(nameof(Commands));
         OnPropertyChanged(nameof(SelectedCommand));
         if (SelectedCommand is null && _commands.Count > 0)
@@ -278,8 +343,6 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
         SetStatus("error", "Cancelling...");
     }
 
-    public string OutputText => Output;
-
     public void ClearOutput()
     {
         Output = "";
@@ -338,7 +401,8 @@ public sealed class RemoteCommandsViewModel : MptObservableViewModel
                 Host = _settings.DefaultHost;
             }
 
-            IsSecondInputVisible = _settings.TwoPane;
+            ReloadHostOptions();
+            OnSelectedCommandChanged();
         }
     }
 
