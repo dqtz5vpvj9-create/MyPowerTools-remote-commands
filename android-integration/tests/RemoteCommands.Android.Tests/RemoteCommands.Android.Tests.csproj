@@ -27,6 +27,11 @@
     <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.2.1" />
     <!-- Test-only: asserts the duplicated error-code literals still equal the protocol contract. -->
     <PackageReference Include="MyPowerTools.Protocol" Version="0.2.0" />
+    <!--
+      Test-only: the real HostControl argument conversion (JsonStructMapper) is what the surface
+      payload travels through on a device. The module package itself must not carry these contracts.
+    -->
+    <PackageReference Include="MyPowerTools.HostControl.Contracts" Version="0.2.0" />
     <PackageReference Include="SSH.NET" Version="2025.1.0" />
   </ItemGroup>
 

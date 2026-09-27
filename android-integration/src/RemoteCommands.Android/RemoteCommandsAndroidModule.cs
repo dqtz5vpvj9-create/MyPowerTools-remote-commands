@@ -1543,6 +1543,17 @@ public sealed class RemoteCommandsAndroidModule : IMptModule, IMptModuleLifecycl
             ? text
             : null;
 
+    /// <summary>
+    /// Reads an integer argument.
+    ///
+    /// The value does not always arrive as a JSON int: HostControl carries command arguments in a
+    /// protobuf <c>Struct</c>, whose only numeric type is <c>double</c>, so a phone-side
+    /// <c>JsonObject.Int32</c> reaches the module as a double-backed <see cref="JsonValue"/> (and a
+    /// future host normalization to <c>long</c> would too). Reading only <c>int</c> therefore turned
+    /// every integer argument into "not an integer" on a real device. int, long, integral
+    /// double/decimal and numeric strings are all accepted; a fractional number is rejected instead of
+    /// being rounded.
+    /// </summary>
     private static int? ReadInt(JsonObject values, string key)
     {
         if (!values.TryGetPropertyValue(key, out var node) || node is not JsonValue value)
@@ -1553,6 +1564,25 @@ public sealed class RemoteCommandsAndroidModule : IMptModule, IMptModuleLifecycl
         if (value.TryGetValue<int>(out var number))
         {
             return number;
+        }
+
+        if (value.TryGetValue<long>(out var wide))
+        {
+            return wide is >= int.MinValue and <= int.MaxValue ? (int)wide : null;
+        }
+
+        if (value.TryGetValue<double>(out var floating))
+        {
+            return Math.Floor(floating) == floating && floating is >= int.MinValue and <= int.MaxValue
+                ? (int)floating
+                : null;
+        }
+
+        if (value.TryGetValue<decimal>(out var precise))
+        {
+            return decimal.Floor(precise) == precise && precise is >= int.MinValue and <= int.MaxValue
+                ? (int)precise
+                : null;
         }
 
         return value.TryGetValue<string>(out var text) && int.TryParse(text, out var parsed) ? parsed : null;

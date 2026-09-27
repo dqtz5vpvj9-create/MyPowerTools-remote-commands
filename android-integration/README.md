@@ -79,7 +79,32 @@ Data directory: the module maps `<state>/modules/remote-commands-android/data` t
 The surface must drive **only** the commands in §2. `tests/RemoteCommands.Android.Tests`
 (`PackageManifestTests`) fails if the manifests stop naming that assembly/type.
 
-## 4. Frozen security behaviour
+## 4. HostControl argument wire types (real-device gotcha)
+
+Command arguments do not reach the module as the surface built them. On the phone the page calls
+`context.ExecuteCommandAsync`, the host client converts the `JsonObject` with
+`JsonStructMapper.ToStruct` into a protobuf `Struct`, and the host service converts it back with
+`JsonStructMapper.ToJsonObject`. A protobuf `Struct` has exactly one numeric type (`double`), so:
+
+| Caller sends | Module receives | `TryGetValue<int>` | `TryGetValue<long>` | `TryGetValue<double>` |
+| --- | --- | --- | --- | --- |
+| `JsonObject.Int32` 300 | `JsonValue.Create(300d)` | **false** | false | true |
+| `JsonValue.Create(300L)` | same `JsonValue<long>` | false | true | false |
+| JSON text `300` (parsed) | `JsonElement`-backed | true | true | true |
+
+A real device therefore failed `settings.update` with "历史条数上限必须是 10 到 5000 之间的整数" while
+the page showed 300. `RemoteCommandsAndroidModule.ReadInt` now accepts int, long, integral
+double/decimal and numeric strings (fractional numbers are still rejected, never rounded), which
+covers every shape a host can deliver. `HostArgumentWireTests` drives the **real**
+`JsonStructMapper` round trip rather than a hand-written payload, so this regression cannot come back
+through a fake-UI test.
+
+Root-level option (not changed here, needs the SDK owner): make `JsonStructMapper.ToJsonNode` emit
+`JsonValue.Create((int)value.NumberValue)` when the value is integral and fits an `int` (else `long`,
+else `double`). That would restore integer-ness for every module on the HostControl path, not just
+this one; until then every module reading integer arguments must parse defensively like this one.
+
+## 5. Frozen security behaviour
 
 - **No default trust.** A `run` connects only when the presented host key matches the fingerprint
   the user confirmed. First use and rotation both fail with `host-key-required` and the exact
@@ -98,7 +123,7 @@ The surface must drive **only** the commands in §2. `tests/RemoteCommands.Andro
 - **No extra hashing.** Host key trust stores SSH.NET's own SHA256 fingerprint; no bespoke hash
   mechanism was added.
 
-## 5. Build integration checklist (host/root owner)
+## 6. Build integration checklist (host/root owner)
 
 1. `MyPowerTools.Android.slnx`: add
    `tools/remote-commands/android-integration/src/RemoteCommands.Android/RemoteCommands.Android.csproj`
@@ -132,7 +157,7 @@ The surface must drive **only** the commands in §2. `tests/RemoteCommands.Andro
 6. Desktop parity (optional, root decision): the desktop `android-tools.remote-commands` module is
    untouched; the Android module declares its own id so both can coexist in the bundled catalog.
 
-## 6. Verification commands
+## 7. Verification commands
 
 ```bash
 # restore (nuget.org is the canonical source; the workspace-local mirror works offline)
@@ -148,7 +173,7 @@ pwsh tools/remote-commands/android-integration/build.ps1 -Configuration Release
 pwsh tools/remote-commands/android-integration/build.ps1 -SkipSurface -NoMirror -Configuration Debug
 ```
 
-## 7. Not verified here
+## 8. Not verified here
 
 - **No real SSH was exercised.** Every test uses `FakeSshTransport`; the production
   `SshNetTransport` only compiles against SSH.NET 2025.1.0 in this build. A device test against a
