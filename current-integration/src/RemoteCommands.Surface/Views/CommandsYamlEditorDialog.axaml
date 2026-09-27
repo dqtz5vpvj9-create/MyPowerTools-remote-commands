@@ -1,11 +1,12 @@
 <Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:MyPowerTools.UI.Controls"
         x:Class="RemoteCommands.Surface.Views.CommandsYamlEditorDialog"
         Title="Edit commands.yaml"
         Width="760"
         Height="600"
-        MinWidth="560"
+
         MinHeight="440"
         Background="{DynamicResource MptBrushAppBackground}"
         WindowStartupLocation="CenterOwner">
@@ -29,7 +30,7 @@
                Foreground="{DynamicResource MptBrushDanger}"
                TextWrapping="Wrap"
                IsVisible="False" />
-    <StackPanel Grid.Row="3"
+    <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Grid.Row="3"
                 Orientation="Horizontal"
                 Spacing="8"
                 HorizontalAlignment="Right">

@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:shortcuts="using:MyPowerTools.AvaloniaSdk"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:RemoteCommands.Surface.ViewModels"
@@ -30,6 +31,7 @@
     </Style>
   </UserControl.Styles>
 
+  <Grid>
   <Grid MaxWidth="1280"
         HorizontalAlignment="Stretch"
         RowDefinitions="Auto,Auto,*,Auto"
@@ -38,7 +40,7 @@
     <!-- Toolbar -->
     <StackPanel Grid.Row="0" Spacing="6">
       <!-- Row 1: Core execution flow -->
-      <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto"
+      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto"
             ColumnSpacing="8"
             MinHeight="40">
         <TextBlock Text="Command:"
@@ -48,7 +50,7 @@
                   ItemsSource="{Binding Commands}"
                   SelectedIndex="{Binding SelectedCommandIndex}"
                   DisplayMemberBinding="{Binding Label}"
-                  MinWidth="280"
+
                   MaxWidth="420"
                   VerticalAlignment="Center"
                   ToolTip.Tip="{Binding SelectedCommand.Description}" />
@@ -68,7 +70,7 @@
                             IsEnabled="{Binding IsRunning}" />
       </Grid>
       <!-- Row 2: Secondary actions -->
-      <StackPanel Orientation="Horizontal" Spacing="8">
+      <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal" Spacing="8">
         <controls:MptButton Content="Re-run"
                             Click="OnRerunClick" shortcuts:MptShortcutHint.CommandId="remote-commands.ui.rerun"
                             IsEnabled="{Binding CanRerun}" shortcuts:MptShortcutHint.Label="{Binding LastRunSummary}" />
@@ -93,7 +95,7 @@
                  HorizontalAlignment="Stretch" />
 
     <!-- Workspace + history -->
-    <Grid Grid.Row="2"
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" Grid.Row="2"
           ColumnDefinitions="*,360"
           ColumnSpacing="10">
       <Border Grid.Column="0"
@@ -104,7 +106,7 @@
               Background="{DynamicResource MptBrushCardBackground}">
         <Grid RowDefinitions="Auto,Auto,*,Auto"
               RowSpacing="8">
-          <StackPanel Orientation="Horizontal"
+          <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal"
                       Spacing="12">
             <TextBlock Text="{Binding Input1Label}"
                        Classes="MptMeta"
@@ -174,7 +176,7 @@
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.ItemTemplate>
               <DataTemplate>
-                <Grid ColumnDefinitions="*,Auto"
+                <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto"
                       ColumnSpacing="8">
                   <StackPanel Spacing="2">
                     <TextBlock Classes="MptMeta"
@@ -187,7 +189,7 @@
                                MaxLines="2"
                                TextTrimming="CharacterEllipsis" />
                   </StackPanel>
-                  <StackPanel Grid.Column="1"
+                  <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Grid.Column="1"
                               Orientation="Horizontal"
                               Spacing="4"
                               VerticalAlignment="Center">
@@ -215,7 +217,7 @@
     </Grid>
 
     <!-- Status -->
-    <Grid Grid.Row="3"
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" Grid.Row="3"
           ColumnDefinitions="*,Auto">
       <TextBlock Text="{Binding StatusText}"
                  Classes="MptMeta"
@@ -226,5 +228,38 @@
                  TextTrimming="CharacterEllipsis"
                  VerticalAlignment="Center" />
     </Grid>
+    </Grid>
+
+    <!--
+      Mobile dialog sheet. Single-view hosts (Android) have no platform window, so
+      Window.ShowDialog cannot present the YAML editor or the settings dialog. The dialog the view
+      model built is hosted here instead: same instance, same commands.yaml path and settings
+      object, same result handling; only the presentation differs.
+    -->
+    <Border x:Name="DialogSheet"
+            IsVisible="False"
+            Background="{DynamicResource MptBrushAppBackground}"
+            Padding="{DynamicResource MptCompactPadding}"
+            KeyDown="OnDialogSheetKeyDown">
+      <Grid RowDefinitions="Auto,*"
+            RowSpacing="10"
+            MaxWidth="760"
+            HorizontalAlignment="Stretch">
+        <Grid ColumnDefinitions="*,Auto"
+              ColumnSpacing="8">
+          <TextBlock x:Name="DialogSheetTitle"
+                     Classes="MptSectionTitle"
+                     TextWrapping="Wrap"
+                     VerticalAlignment="Center" />
+          <controls:MptButton Grid.Column="1"
+                              Content="Cancel"
+                              Click="OnCloseDialogSheetClick" />
+        </Grid>
+        <ContentControl x:Name="DialogSheetHost"
+                        Grid.Row="1"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch" />
+      </Grid>
+    </Border>
   </Grid>
 </UserControl>

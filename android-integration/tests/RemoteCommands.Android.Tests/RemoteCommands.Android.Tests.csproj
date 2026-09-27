@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Tests for the Android Remote Commands adapter.
+
+    The module sources are compiled directly into this test assembly (same technique as the
+    Remote Notifications Android tests), so the tests exercise the shipped adapter, the linked
+    product sources and the transport seam - never a private copy.
+
+    Every test uses FakeSshTransport: no socket is opened, no server is contacted, and no test
+    result may be read as "real SSH was verified on a device". The SSH.NET reference exists only
+    because the adapter's production transport compiles into this assembly.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.2.1" />
+    <!-- Test-only: asserts the duplicated error-code literals still equal the protocol contract. -->
+    <PackageReference Include="MyPowerTools.Protocol" Version="0.2.0" />
+    <PackageReference Include="SSH.NET" Version="2025.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="System.Text.Json.Nodes" />
+    <Using Include="MyPowerTools.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\RemoteCommands.Android\**\*.cs"
+             Exclude="..\..\src\RemoteCommands.Android\bin\**;..\..\src\RemoteCommands.Android\obj\**"
+             LinkBase="Product\Android" />
+    <Compile Include="..\..\..\current-integration\src\RemoteCommands.Surface\Services\RemoteCommandsYaml.cs"
+             Link="Product\Surface\RemoteCommandsYaml.cs" />
+    <Compile Include="..\..\..\current-integration\src\RemoteCommands.Surface\Services\RemoteCommandsStore.cs"
+             Link="Product\Surface\RemoteCommandsStore.cs" />
+    <Compile Include="..\..\..\current-integration\src\RemoteCommands.Surface\Services\RemoteCommandsFile.cs"
+             Link="Product\Surface\RemoteCommandsFile.cs" />
+    <Compile Include="..\..\..\current-integration\src\RemoteCommands.Surface\Services\RemoteCommandsTextTransforms.cs"
+             Link="Product\Surface\RemoteCommandsTextTransforms.cs" />
+  </ItemGroup>
+
+</Project>

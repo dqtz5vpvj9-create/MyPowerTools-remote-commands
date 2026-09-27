@@ -1,0 +1,6 @@
+artifacts/
+**/bin/
+**/obj/
+.tmp/
+.verify-feed/
+*.user

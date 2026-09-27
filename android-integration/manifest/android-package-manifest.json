@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "1.0",
+  "packageId": "remote-commands-android",
+  "moduleId": "remote-commands-android",
+  "toolId": "remote-commands-android",
+  "platforms": [
+    "android-arm64",
+    "android-x64"
+  ],
+  "packageRoot": "tools/remote-commands/android-integration/artifacts/package/remote-commands-android",
+  "apkAssetRoot": "modules/remote-commands-android",
+  "notes": [
+    "android-integration/build.ps1 stages this package and fails if any required file is missing.",
+    "The host bundles the whole package root into the APK assets; the Shell resolves the surface from ui/tool.json.",
+    "MyPowerTools.* assemblies are intentionally not listed: the host resolves Abstractions, Platform.Abstractions and AvaloniaSdk from its own load context.",
+    "Renci.SshNet.dll is the managed SSH client; BouncyCastle.Cryptography.dll is its crypto dependency and must keep the same version the desktop product pins (2.6.2) so the APK does not carry two crypto stacks."
+  ],
+  "files": [
+    {
+      "path": "module.json",
+      "role": "module-manifest",
+      "source": "package/module.json",
+      "required": true
+    },
+    {
+      "path": "commands.index.json",
+      "role": "command-index",
+      "source": "package/commands.index.json",
+      "required": true
+    },
+    {
+      "path": "ui/tool.json",
+      "role": "tool-manifest",
+      "source": "package/ui/tool.json",
+      "required": true
+    },
+    {
+      "path": "ui/dashboard-card.json",
+      "role": "ui-descriptor",
+      "source": "package/ui/dashboard-card.json",
+      "required": true
+    },
+    {
+      "path": "ui/detail-page.json",
+      "role": "ui-descriptor",
+      "source": "package/ui/detail-page.json",
+      "required": true
+    },
+    {
+      "path": "ui/settings.json",
+      "role": "ui-descriptor",
+      "source": "package/ui/settings.json",
+      "required": true
+    },
+    {
+      "path": "ui/logs.json",
+      "role": "ui-descriptor",
+      "source": "package/ui/logs.json",
+      "required": true
+    },
+    {
+      "path": "RemoteCommands.Android.dll",
+      "role": "module-adapter",
+      "source": "src/RemoteCommands.Android/RemoteCommands.Android.csproj",
+      "required": true,
+      "platforms": [
+        "android-arm64",
+        "android-x64"
+      ]
+    },
+    {
+      "path": "ui/surface/MyPowerTools.MobileRemoteCommands.dll",
+      "role": "tool-surface",
+      "source": "src/MyPowerTools.MobileRemoteCommands/MyPowerTools.MobileRemoteCommands.csproj",
+      "required": true
+    },
+    {
+      "path": "Renci.SshNet.dll",
+      "role": "module-dependency",
+      "source": "NuGet SSH.NET 2025.1.0 (net9.0 asset), https://www.nuget.org/packages/SSH.NET",
+      "required": true
+    },
+    {
+      "path": "BouncyCastle.Cryptography.dll",
+      "role": "module-dependency",
+      "source": "NuGet BouncyCastle.Cryptography 2.6.2 (same version as the desktop product)",
+      "required": true
+    },
+    {
+      "path": "Microsoft.Extensions.Logging.Abstractions.dll",
+      "role": "module-dependency",
+      "source": "NuGet Microsoft.Extensions.Logging.Abstractions 8.0.3 (SSH.NET dependency)",
+      "required": false
+    },
+    {
+      "path": "Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+      "role": "module-dependency",
+      "source": "NuGet Microsoft.Extensions.DependencyInjection.Abstractions 8.0.2 (SSH.NET dependency)",
+      "required": false
+    }
+  ]
+}

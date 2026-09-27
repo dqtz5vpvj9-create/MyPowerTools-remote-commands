@@ -1,8 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
-    <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
+    <!-- The sibling src/MyPowerTools.Abstractions and src/MyPowerTools.Protocol copies are not
+         materialized in this tree; the adapter consumes the same SDK packages every other
+         current-integration adapter uses. -->
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.Protocol" Version="0.2.0" />
   </ItemGroup>
 
   <PropertyGroup>

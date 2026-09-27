@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "1.0",
+  "commands": [
+    {
+      "id": "remote-commands-android.workspace.open",
+      "title": "打开远程命令",
+      "subtitle": "选择命令、输入并运行",
+      "kind": "open",
+      "category": "远程命令",
+      "execution": {
+        "type": "navigation",
+        "toolId": "remote-commands-android",
+        "routeId": "workspace"
+      }
+    },
+    {
+      "id": "remote-commands-android.status",
+      "title": "查看远程命令状态",
+      "subtitle": "命令目录、主机、主机密钥与执行状态",
+      "kind": "action",
+      "category": "远程命令",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-commands-android.catalog",
+      "title": "列出命令目录",
+      "subtitle": "读取共享的 commands.yaml",
+      "kind": "action",
+      "category": "远程命令",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-commands-android.catalog.save",
+      "title": "保存命令目录",
+      "subtitle": "校验并写入共享的 commands.yaml",
+      "kind": "action",
+      "category": "远程命令",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-commands-android.settings.update",
+      "title": "保存远程命令设置",
+      "subtitle": "校验并保存默认主机、别名、历史保留、CONDA_EXE 与执行超时",
+      "kind": "action",
+      "category": "远程命令",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-commands-android.hosts.list",
+      "title": "列出远程主机",
+      "subtitle": "别名到真实主机、用户与凭据状态",
+      "kind": "action",
+      "category": "远程命令",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-commands-android.host-key.status",
+      "title": "查看已确认的主机密钥",
+      "subtitle": "显示已确认的 SHA256 指纹",
+      "kind": "action",
+      "category": "远程命令",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-commands-android.history.summary",
+      "title": "远程命令历史摘要",
+      "subtitle": "统计共享 history.json 的条数与最近一次执行",
+      "kind": "action",
+      "category": "远程命令",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-commands-android.history.clear",
+      "title": "清空远程命令历史",
+      "subtitle": "删除本机保存的执行历史",
+      "kind": "action",
+      "category": "远程命令",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-commands-android.cancel",
+      "title": "取消当前远程命令",
+      "subtitle": "结束执行并断开 SSH 连接",
+      "kind": "action",
+      "category": "远程命令",
+      "execution": {
+        "type": "module.execute"
+      }
+    }
+  ]
+}

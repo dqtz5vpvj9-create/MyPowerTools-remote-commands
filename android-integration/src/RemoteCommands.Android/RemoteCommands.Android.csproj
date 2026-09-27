@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Android in-process adapter for the Remote Commands product.
+
+    The desktop product owns the commands.yaml schema, the settings/history store and the local
+    text transforms through RemoteCommands.Surface; this adapter compiles those shipped sources
+    read-only instead of forking a private copy, so a command definition edited on the phone means
+    exactly what it means on the desktop.
+
+    The desktop executor shells out to ssh.exe/scp.exe. Android has neither, so the adapter runs the
+    same upload -> execute -> cleanup flow through the fully managed SSH.NET client
+    (Renci.SshNet) with standard host key verification (no default trust) and credentials that only
+    ever live in the platform secret store.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>RemoteCommands.Android</AssemblyName>
+    <RootNamespace>RemoteCommands.Android</RootNamespace>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.2.1" />
+    <!--
+      Fully managed SSH/SFTP client. 2025.1.0 is the release whose BouncyCastle.Cryptography
+      dependency (2.6.2) is the version the desktop product already pins, so adding it does not
+      silently upgrade the crypto library for the whole Android app. net10.0 consumes its net9.0
+      asset.
+    -->
+    <PackageReference Include="SSH.NET" Version="2025.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shipped product sources, linked read-only. Never edit these through this project. -->
+    <Compile Include="..\..\..\current-integration\src\RemoteCommands.Surface\Services\RemoteCommandsYaml.cs"
+             Link="Linked\RemoteCommandsYaml.cs" />
+    <Compile Include="..\..\..\current-integration\src\RemoteCommands.Surface\Services\RemoteCommandsStore.cs"
+             Link="Linked\RemoteCommandsStore.cs" />
+    <Compile Include="..\..\..\current-integration\src\RemoteCommands.Surface\Services\RemoteCommandsFile.cs"
+             Link="Linked\RemoteCommandsFile.cs" />
+    <Compile Include="..\..\..\current-integration\src\RemoteCommands.Surface\Services\RemoteCommandsTextTransforms.cs"
+             Link="Linked\RemoteCommandsTextTransforms.cs" />
+  </ItemGroup>
+
+</Project>

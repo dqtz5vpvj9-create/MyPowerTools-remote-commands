@@ -1,11 +1,12 @@
 <Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:MyPowerTools.UI.Controls"
         x:Class="RemoteCommands.Surface.Views.SettingsDialog"
         Title="Remote Commands settings"
         Width="520"
         Height="560"
-        MinWidth="460"
+
         MinHeight="460"
         Background="{DynamicResource MptBrushAppBackground}"
         WindowStartupLocation="CenterOwner">
@@ -19,7 +20,7 @@
           <TextBlock Classes="MptMeta"
                      Text="Add each OpenSSH host or config alias once. The workspace then uses a selector, so routine runs do not require typing a host."
                      TextWrapping="Wrap" />
-          <Grid ColumnDefinitions="*,Auto"
+          <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto"
                 ColumnSpacing="8">
             <controls:MptTextBox x:Name="NewHostInput"
                                  PlaceholderText="r743 or user@hostname" />
@@ -38,7 +39,7 @@
         <StackPanel Spacing="4">
           <TextBlock Classes="MptSectionTitle" Text="Default SSH host" />
           <ComboBox x:Name="DefaultHostInput"
-                    MinWidth="220"
+
                     HorizontalAlignment="Left" />
         </StackPanel>
 
@@ -65,7 +66,7 @@
       </StackPanel>
     </ScrollViewer>
 
-    <StackPanel Grid.Row="1"
+    <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Grid.Row="1"
                 Orientation="Horizontal"
                 Spacing="8"
                 HorizontalAlignment="Right">

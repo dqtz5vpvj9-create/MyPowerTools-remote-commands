@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "1.0",
+  "id": "remote-commands-android",
+  "packageId": "remote-commands-android",
+  "displayName": "远程命令",
+  "version": "0.1.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "inproc-dotnet",
+      "priority": 100,
+      "platforms": [
+        "android-arm64",
+        "android-x64"
+      ],
+      "assembly": "RemoteCommands.Android.dll",
+      "type": "RemoteCommands.Android.RemoteCommandsAndroidModule"
+    }
+  ],
+  "capabilities": [
+    "lifecycle",
+    "status",
+    "commands",
+    "settings",
+    "logs",
+    "dashboardCard",
+    "detailPage"
+  ],
+  "runtimePolicy": {
+    "preferred": "inproc",
+    "allowInProc": true,
+    "inProcRules": {
+      "maxCallMs": 3600000,
+      "allowNativeDll": false,
+      "allowWindow": false,
+      "allowBackgroundThreads": true,
+      "loadContext": "collectible",
+      "shadowCopy": true
+    },
+    "operationRules": {
+      "status": "inproc-or-sidecar",
+      "settings": "inproc-or-sidecar",
+      "commandProvider": "inproc-or-sidecar",
+      "longRunningCommand": "inproc-or-sidecar",
+      "systemMutation": "unsupported",
+      "nativeHardware": "unsupported",
+      "elevatedWrite": "unsupported",
+      "externalProcess": "inproc-or-sidecar"
+    }
+  },
+  "requires": [
+    {
+      "capability": "secret.store",
+      "required": true,
+      "reason": "SSH 密码与私钥只能保存在平台凭据库，模块 JSON 只保存认证方式"
+    },
+    {
+      "capability": "background.activity",
+      "required": false,
+      "reason": "远程命令执行期间持有前台服务任务，用户可在系统通知里停止"
+    }
+  ],
+  "permissions": [],
+  "hotkeys": [],
+  "staticIndexes": {
+    "commands": "commands.index.json"
+  },
+  "tools": [
+    "ui/tool.json"
+  ],
+  "uiSurfaces": [
+    "ui/dashboard-card.json",
+    "ui/detail-page.json",
+    "ui/settings.json",
+    "ui/logs.json"
+  ]
+}

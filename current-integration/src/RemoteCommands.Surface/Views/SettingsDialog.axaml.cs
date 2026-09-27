@@ -7,7 +7,7 @@ using RemoteCommands.Surface.Services;
 
 namespace RemoteCommands.Surface.Views;
 
-public sealed partial class SettingsDialog : Window
+public sealed partial class SettingsDialog : Window, IMptSurfaceSheetDialog
 {
     private readonly ObservableCollection<string> _hosts = [];
     private readonly RemoteCommandsSettings _originalSettings;
@@ -60,6 +60,24 @@ public sealed partial class SettingsDialog : Window
     }
 
     public RemoteCommandsSettings Result { get; private set; }
+
+    /// <summary>
+    /// Set by the owning surface when this dialog is presented inside an in-surface sheet.
+    /// Single-view hosts (Android) have no platform window, so the dialog reports its result
+    /// through this completion source instead of <see cref="Window.Close(object?)"/>.
+    /// </summary>
+    public TaskCompletionSource<object?>? SheetCompletion { get; set; }
+
+    private void Complete(bool accepted)
+    {
+        if (SheetCompletion is { } completion)
+        {
+            completion.TrySetResult(accepted);
+            return;
+        }
+
+        Close(accepted);
+    }
 
     private void OnAddHostClick(object? sender, RoutedEventArgs e)
     {
@@ -125,12 +143,12 @@ public sealed partial class SettingsDialog : Window
             HistoryRetention = retention,
             KnownHosts = RemoteCommandsStore.SerializeKnownHosts(_hosts)
         };
-        Close(true);
+        Complete(true);
     }
 
     private void OnCancelClick(object? sender, RoutedEventArgs e)
     {
-        Close(false);
+        Complete(false);
     }
 
     private bool TryAddPendingHost(bool selectAddedHost)

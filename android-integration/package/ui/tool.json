@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "1.0",
+  "toolId": "remote-commands-android",
+  "ownerModuleId": "remote-commands-android",
+  "title": "远程命令",
+  "description": "在手机上运行 commands.yaml 里配置的远程命令：上传两个输入文件、流式查看输出、随时取消；使用纯托管 SSH 客户端，主机密钥需明确确认。",
+  "icon": "tool.remote-commands",
+  "category": "Automation",
+  "type": "dotnet-surface",
+  "availability": "available",
+  "primaryRouteId": "workspace",
+  "routes": [
+    {
+      "routeId": "workspace",
+      "surfaceId": "remote-commands-android.workspace",
+      "title": "远程命令",
+      "icon": "route.workspace",
+      "surface": {
+        "kind": "dotnet",
+        "assembly": "surface/MyPowerTools.MobileRemoteCommands.dll",
+        "type": "MyPowerTools.MobileRemoteCommands.RemoteCommandsMobileSurfaceFactory"
+      }
+    }
+  ],
+  "homeCard": {
+    "summary": "选择命令、填两个输入、点运行；输出实时滚动，可随时取消。",
+    "primaryActionLabel": "打开远程命令",
+    "statusBinding": "module.status",
+    "order": 30
+  },
+  "activationUriPrefixes": [
+    "mypowertools://remote-command"
+  ]
+}

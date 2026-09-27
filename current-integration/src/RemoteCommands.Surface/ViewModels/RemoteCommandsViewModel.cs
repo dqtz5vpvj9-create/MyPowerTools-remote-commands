@@ -380,10 +380,17 @@ public sealed partial class RemoteCommandsViewModel : MptObservableViewModel
         await ReloadHistoryAsync().ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// Optional dialog presenter supplied by the surface. When set, the host presents the dialog
+    /// (single-view/Android surfaces use an in-surface sheet because no platform window exists).
+    /// When unset, the desktop path keeps using <c>Window.ShowDialog</c> with the owner.
+    /// </summary>
+    public IRemoteCommandsDialogPresenter? DialogPresenter { get; set; }
+
     public async Task OpenYamlEditorAsync(Window? owner)
     {
         var dialog = new CommandsYamlEditorDialog(_store.CommandsPath);
-        if (owner is not null && await dialog.ShowDialog<bool?>(owner).ConfigureAwait(true) == true)
+        if (await ShowDialogAsync(dialog, owner).ConfigureAwait(true))
         {
             await ReloadCommandsAsync().ConfigureAwait(true);
         }
@@ -392,7 +399,7 @@ public sealed partial class RemoteCommandsViewModel : MptObservableViewModel
     public async Task OpenSettingsAsync(Window? owner)
     {
         var dialog = new SettingsDialog(_settings);
-        if (owner is not null && await dialog.ShowDialog<bool?>(owner).ConfigureAwait(true) == true)
+        if (await ShowDialogAsync(dialog, owner).ConfigureAwait(true))
         {
             _settings = dialog.Result;
             await _store.SaveSettingsAsync(_settings).ConfigureAwait(true);
@@ -404,6 +411,18 @@ public sealed partial class RemoteCommandsViewModel : MptObservableViewModel
             ReloadHostOptions();
             OnSelectedCommandChanged();
         }
+    }
+
+    private async Task<bool> ShowDialogAsync(Window dialog, Window? owner)
+    {
+        if (DialogPresenter is { } presenter)
+        {
+            return await presenter.ShowDialogAsync(dialog).ConfigureAwait(true) == true;
+        }
+
+        // No owner and no presenter means the host cannot present dialogs at all; keep the dialog
+        // from silently reporting success.
+        return owner is not null && await dialog.ShowDialog<bool?>(owner).ConfigureAwait(true) == true;
     }
 
     public void OpenExternalEditor()

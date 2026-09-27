@@ -15,9 +15,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AndroidTools.MyPowerTools\AndroidTools.MyPowerTools.csproj" />
-    <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
-    <ProjectReference Include="..\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
+    <PackageReference Include="MyPowerTools.Protocol" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
     <ProjectReference Include="..\..\..\..\..\src\MyPowerTools.Ipc.Shared\MyPowerTools.Ipc.Shared.csproj" />
+    <ProjectReference Include="..\..\..\..\..\src\MyPowerTools.Ipc.AspNetCore\MyPowerTools.Ipc.AspNetCore.csproj" />
   </ItemGroup>
 
   <Target Name="CopyModuleHostToPackage" AfterTargets="Build">
