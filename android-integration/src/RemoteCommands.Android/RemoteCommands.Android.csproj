@@ -25,7 +25,7 @@
 
   <ItemGroup>
     <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
-    <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.2.1" />
+    <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.3.0" />
     <!--
       Fully managed SSH/SFTP client. 2025.1.0 is the release whose BouncyCastle.Cryptography
       dependency (2.6.2) is the version the desktop product already pins, so adding it does not
