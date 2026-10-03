@@ -10,7 +10,7 @@ namespace RemoteCommands.Surface.ViewModels;
 public sealed partial class RemoteCommandsViewModel : MptObservableViewModel
 {
     private readonly RemoteCommandsStore _store;
-    private readonly SshCommandExecutor _executor = new();
+    private readonly SshCommandExecutor _executor;
     private CancellationTokenSource? _cancellation;
     private IReadOnlyList<RemoteCommandDefinition> _commands = [];
     private IReadOnlyList<string> _hostOptions = [];
@@ -34,8 +34,9 @@ public sealed partial class RemoteCommandsViewModel : MptObservableViewModel
     public string LastRunSummary => _lastCommand is null ? "尚未运行命令" : $"重跑 {_lastCommand.Label} · {_lastHost} · 使用上次输入";
     private RemoteCommandsSettings _settings;
 
-    public RemoteCommandsViewModel(MptAvaloniaSurfaceContext context)
+    public RemoteCommandsViewModel(MptAvaloniaSurfaceContext context, SshCommandExecutor? executor = null)
     {
+        _executor = executor ?? new SshCommandExecutor();
         _store = new RemoteCommandsStore(context.DataDirectory);
         _settings = _store.LoadSettings();
         _host = RemoteCommandsStore.IsValidHost(_settings.LastHost)
@@ -490,6 +491,8 @@ public sealed partial class RemoteCommandsViewModel : MptObservableViewModel
                 Output = newOutput;
             }),
             cancellationToken).ConfigureAwait(true);
+        if (result.ExitCode != 0)
+            throw new IOException($"Remote command failed (exit code {result.ExitCode}).\n{result.Output}");
         return result.Output;
     }
 
