@@ -41,3 +41,9 @@ commands:
 - `current-integration/src/RemoteCommands.Surface/` contains the Avalonia Surface, persistence, command parser, SSH executor, and text transforms.
 - `current-integration/modules/android-tools-suite/` contains the shared suite module definitions.
 - `build.ps1` builds and packs the Surface. The shared `android-tools-suite` runtime package remains owned by the `remote-notifications` submodule.
+
+## Historical integration snapshots
+
+The superseded duplicate AndroidTools adapter/runtime snapshots now live in Git history rather than the current source tree.
+See [the exact file inventory and recovery commands](current-integration/ARCHIVED-SNAPSHOTS.md).
+Original product source and active build/package inputs remain in place.
