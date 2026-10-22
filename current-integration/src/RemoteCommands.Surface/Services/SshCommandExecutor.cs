@@ -9,6 +9,12 @@ namespace RemoteCommands.Surface.Services;
 /// </summary>
 public sealed class SshCommandExecutor
 {
+    private readonly Func<string, IReadOnlyList<string>, Action<string>?, CancellationToken, Task<int>> _runProcess;
+
+    public SshCommandExecutor(Func<string, IReadOnlyList<string>, Action<string>?, CancellationToken, Task<int>>? runProcess = null)
+    {
+        _runProcess = runProcess ?? RunProcessAsync;
+    }
     private const string MinicondaPath = "/home/lixr/miniconda3";
 
     public static string SshExecutable { get; } = ResolveOpenSshExecutable("ssh.exe");
@@ -22,6 +28,9 @@ public sealed class SshCommandExecutor
         Action<string>? onOutput = null,
         CancellationToken cancellationToken = default)
     {
+        if (!RemoteCommandsStore.IsValidHost(host))
+            throw new ArgumentException("Invalid SSH host.", nameof(host));
+        host = host.Trim();
         var temp1 = Path.Combine(Path.GetTempPath(), $"mpt-remote-commands-{Guid.NewGuid():N}.input1");
         var temp2 = Path.Combine(Path.GetTempPath(), $"mpt-remote-commands-{Guid.NewGuid():N}.input2");
         var file1 = Path.GetFileName(temp1);
@@ -30,7 +39,7 @@ public sealed class SshCommandExecutor
 
         void Emit(string line)
         {
-            output.AppendLine(line);
+            lock (output) output.AppendLine(line);
             onOutput?.Invoke(line);
         }
 
@@ -40,16 +49,18 @@ public sealed class SshCommandExecutor
             await File.WriteAllTextAsync(temp2, input2 ?? "", cancellationToken).ConfigureAwait(false);
 
             Emit("Uploading input files...");
-            await RunProcessAsync(
+            var uploadExitCode = await _runProcess(
                 ScpExecutable,
                 [temp1, temp2, $"{host}:/tmp/"],
-                cancellationToken: cancellationToken).ConfigureAwait(false);
+                Emit, cancellationToken).ConfigureAwait(false);
+            if (uploadExitCode != 0)
+                throw new IOException($"Input upload failed (exit code {uploadExitCode}).");
 
             cancellationToken.ThrowIfCancellationRequested();
             Emit("Executing remote command...");
             var remoteCommand =
                 $"CONDA_EXE={MinicondaPath}/bin/conda {command} --file1 /tmp/{file1} --file2 /tmp/{file2}";
-            var exitCode = await RunProcessAsync(
+            var exitCode = await _runProcess(
                 SshExecutable,
                 [host, remoteCommand],
                 line => Emit(line),
@@ -64,10 +75,10 @@ public sealed class SshCommandExecutor
             TryDelete(temp2);
             try
             {
-                await RunProcessAsync(
+                await _runProcess(
                     SshExecutable,
                     [host, $"rm -f /tmp/{file1} /tmp/{file2}"],
-                    cancellationToken: CancellationToken.None).ConfigureAwait(false);
+                    null, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception)
             {
